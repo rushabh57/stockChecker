@@ -1,7 +1,7 @@
 // Fallback for using MaterialIcons on Android and web.
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { SymbolWeight, SymbolViewProps } from 'expo-symbols';
+import { SymbolViewProps, SymbolWeight } from 'expo-symbols';
 import { ComponentProps } from 'react';
 import { OpaqueColorValue, type StyleProp, type TextStyle } from 'react-native';
 
@@ -18,6 +18,25 @@ const MAPPING = {
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
+  "note.text": "description",
+  'checklist': 'assignment',           // Good for "carry-out" or tasks
+  'square.and.pencil': 'edit',         // Classic "compose" icon
+  'list.bullet.clipboard': 'assignment', // Alternative task list style
+
+  // Bullet Points (For your written notes list)
+  'list.bullet': 'format-list-bulleted',
+
+  // Search Bar Icon
+  'magnifyingglass': 'search',
+
+  // Filter/Show Icon (Commonly used for popovers/settings)
+  'line.3.horizontal.decrease.circle': 'filter-list',
+
+  // Reset/Undo Icon (For your reset button inside the popover)
+  'arrow.counterclockwise': 'refresh',
+
+  // Alternative Filter (more "sliders" style)
+  'slider.horizontal.3': 'tune',
 } as IconMapping;
 
 /**

@@ -3,7 +3,7 @@ import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getLiveInventory } from '@/constants/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function PurchaseNoteScreen() {
@@ -11,40 +11,33 @@ export default function PurchaseNoteScreen() {
   const [purchaseList, setPurchaseList] = useState([]);
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false); // For refresh state
   const [searchQuery, setSearchQuery] = useState('');
   const [filterActive, setFilterActive] = useState(false); 
   const [showSummary, setShowSummary] = useState(false);
 
-  // Reusable fetch function
-  const initializeData = useCallback(async (isManualRefresh = false) => {
-    if (isManualRefresh) setRefreshing(true);
-    else setLoading(true);
-
-    try {
-      const data = await getLiveInventory();
-      const actualProducts = data.items.filter((i: any) => i.status !== 'Template');
-      setItems(actualProducts);
-
-      const savedNotes = await AsyncStorage.getItem('purchase_notes');
-      const lastSaveTime = await AsyncStorage.getItem('note_reset_time');
-      
-      if (lastSaveTime && Date.now() - parseInt(lastSaveTime) < 8 * 60 * 60 * 1000) {
-        if (savedNotes) setPurchaseList(JSON.parse(savedNotes));
-      } else {
-        clearAllNotes();
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
   useEffect(() => {
+    const initializeData = async () => {
+      try {
+        const data = await getLiveInventory();
+        const actualProducts = data.items.filter((i: any) => i.status !== 'Template');
+        setItems(actualProducts);
+
+        const savedNotes = await AsyncStorage.getItem('purchase_notes');
+        const lastSaveTime = await AsyncStorage.getItem('note_reset_time');
+        
+        if (lastSaveTime && Date.now() - parseInt(lastSaveTime) < 8 * 60 * 60 * 1000) {
+          if (savedNotes) setPurchaseList(JSON.parse(savedNotes));
+        } else {
+          clearAllNotes();
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
     initializeData();
-  }, [initializeData]);
+  }, []);
 
   const clearAllNotes = async () => {
     setPurchaseList([]);
@@ -56,16 +49,20 @@ export default function PurchaseNoteScreen() {
 
   const groupedItems = useMemo(() => {
     let filtered = items;
+
     if (searchQuery) {
       filtered = filtered.filter((i: any) => i.item_name.toLowerCase().includes(searchQuery.toLowerCase()));
     }
+
     if (filterActive) {
+      // Market Mode: Show items where user has set a Target > 0
       filtered = filtered.filter((i: any) => {
         const row = purchaseList.find(p => p.id === i.name);
         const targetVal = row?.target ?? i.target_qty;
         return targetVal && targetVal !== '0' && targetVal !== 0;
       });
     }
+
     return filtered.reduce((acc: any, item: any) => {
       const parts = item.item_name.split('-'); 
       const brand = parts[0] || 'Other';
@@ -98,20 +95,7 @@ export default function PurchaseNoteScreen() {
   return (
     <ThemedView style={styles.container}>
       <View style={styles.header}>
-        <View style={styles.titleRow}>
-          <ThemedText style={styles.title}>Market Note</ThemedText>
-          <Pressable 
-            onPress={() => initializeData(true)} 
-            disabled={refreshing}
-            style={({pressed}) => [styles.refreshBtn, pressed && {opacity: 0.5}]}
-          >
-            {refreshing ? (
-              <ActivityIndicator size="small" color="#4CAF50" />
-            ) : (
-              <IconSymbol name="arrow.counterclockwise" size={20} color="#4CAF50" />
-            )}
-          </Pressable>
-        </View>
+        <ThemedText style={styles.title}>Market Note</ThemedText>
         
         <View style={styles.topActions}>
           <View style={styles.searchPill}>
@@ -166,6 +150,7 @@ export default function PurchaseNoteScreen() {
                           <Text style={styles.priceTag}>₹{item.valuation_rate || '0'}</Text>
                         </View>
                         <View style={styles.inputsRow}>
+                          {/* TARGET PILL - YELLOW */}
                           <View style={[styles.pillInput, (rowData?.target > 0) && styles.targetActive]}>
                             <Text style={styles.pillLabel}>TARGET</Text>
                             <TextInput 
@@ -177,6 +162,8 @@ export default function PurchaseNoteScreen() {
                               onChangeText={(v) => updateField(item, 'target', v)}
                             />
                           </View>
+
+                          {/* ACTUAL PILL - GREEN */}
                           <View style={[styles.pillInput, (rowData?.actual > 0) && styles.actualActive]}>
                             <Text style={styles.pillLabel}>ACTUAL</Text>
                             <TextInput 
@@ -232,12 +219,11 @@ export default function PurchaseNoteScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   header: { paddingHorizontal: 20, paddingTop: 60 },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { color: '#fff', fontSize: 28, fontWeight: 'bold' },
-  refreshBtn: { padding: 8, backgroundColor: '#111', borderRadius: 99, borderWidth: 1, borderColor: '#1A1A1A' },
   topActions: { flexDirection: 'row', gap: 8, marginTop: 15, alignItems: 'center' },
   searchPill: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', borderRadius: 99, paddingHorizontal: 15, height: 50, borderWidth: 1, borderColor: '#1A1A1A' },
-  searchBar: { flex: 1, fontSize: 14, color: '#fff', marginLeft: 8 },
+  // searchBar: { color: '#fff', marginLeft: 8, },
+  searchBar: { flex: 1, fontSize: 14 , backgroundColor: '#111', color: '#fff', padding: 15, borderRadius: 12 },
   actionIconPill: { width: 42, height: 42, borderRadius: 99, backgroundColor: '#111', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#1A1A1A' },
   activeFilterPill: { backgroundColor: '#4CAF50', borderColor: '#4CAF50' },
   
