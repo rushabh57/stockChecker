@@ -7,18 +7,16 @@ import * as SecureStore from 'expo-secure-store';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-  export default function InventoryDashboard() {
-    const router = useRouter();
-    const [rawData, setRawData] = useState({ bins: [], draftSales: [], items: [] });
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [search, setSearch] = useState('');
-    const [activeWarehouse, setActiveWarehouse] = useState('All');
+export default function InventoryDashboard() {
+  const router = useRouter();
+  // CHANGED: rawData is now a simple array from the report
+  const [rawData, setRawData] = useState([]); 
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState('');
+  const [activeWarehouse, setActiveWarehouse] = useState('All');
+  const [userName, setUserName] = useState('');
 
-  // CHANGED: State for the dynamic user name
-  const [userName, setUserName] = useState(''); 
-
-  // CHANGED: Effect to load the user name from storage
   useEffect(() => {
     const fetchUser = async () => {
       const storedName = await SecureStore.getItemAsync('user_name');
@@ -34,7 +32,6 @@ import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleS
         text: "Logout", 
         style: "destructive", 
         onPress: async () => {
-          // Clean up all user data
           await SecureStore.deleteItemAsync('frappe_session');
           await SecureStore.deleteItemAsync('user_name'); 
           router.replace('/login');
@@ -43,71 +40,66 @@ import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleS
     ]);
   };
 
-    const loadData = useCallback(async (isManual = false) => {
-      if (isManual) setRefreshing(true);
-      try {
-        const data = await getLiveInventory();
-        setRawData(data);
-      } catch (err) {
-        console.error("Dashboard Load Error:", err);
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    }, []);
+  const loadData = useCallback(async (isManual = false) => {
+    if (isManual) setRefreshing(true);
+    try {
+      const data = await getLiveInventory();
+      // data is already the 'cleanData' array from your new api.js
+      setRawData(data);
+    } catch (err) {
+      console.error("Dashboard Load Error:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
-    useEffect(() => {
-      loadData();
-      const interval = setInterval(() => loadData(), 10000); // Auto-refresh every 10s
-      return () => clearInterval(interval);
-    }, [loadData]);
+  useEffect(() => {
+    loadData();
+    const interval = setInterval(() => loadData(), 10000);
+    return () => clearInterval(interval);
+  }, [loadData]);
 
-    const onPullRefresh = () => {
-      setRefreshing(true);
-      loadData(true);
-    };
+  const onPullRefresh = () => {
+    setRefreshing(true);
+    loadData(true);
+  };
 
-    const processedGroups = useMemo(() => {
-      const itemMap = new Map();
-      rawData.items.forEach(i => itemMap.set(i.name, i));
-
-      const salesMap = new Map();
-      rawData.draftSales.forEach(s => {
-        const key = `${s.item_code}_${s.warehouse}`;
-        salesMap.set(key, (salesMap.get(key) || 0) + s.qty);
-      });
-
-      return rawData.bins.reduce((acc, bin) => {
-        const item = itemMap.get(bin.item_code);
-        if (!item) return acc; 
-
-        if (activeWarehouse !== 'All' && bin.warehouse !== activeWarehouse) return acc;
-        if (search && !item.item_name.toLowerCase().includes(search.toLowerCase())) return acc;
-
-        const key = `${bin.item_code}_${bin.warehouse}`;
-        const liveQty = bin.actual_qty - (bin.reserved_qty || 0) - (salesMap.get(key) || 0);
-
-        if (liveQty <= 0 && activeWarehouse !== 'All') return acc; 
-
+  // UPDATED: Much simpler processing logic
+  const processedGroups = useMemo(() => {
+    return rawData
+      .filter(item => {
+        const matchesWarehouse = activeWarehouse === 'All' || item.warehouse === activeWarehouse;
+        const matchesSearch = !search || 
+          item.item_name.toLowerCase().includes(search.toLowerCase()) ||
+          item.item_code.toLowerCase().includes(search.toLowerCase());
+        
+        return matchesWarehouse && matchesSearch;
+      })
+      .map(item => {
+        // Fallback for brand if it's null in ERPNext
         const nameParts = item.item_name.split('-');
-        acc.push({
-          warehouse: bin.warehouse,
-          brand: (nameParts[0] || "Other").toUpperCase(),
+        const detectedBrand = item.brand || nameParts[0] || "OTHER";
+
+        return {
+          warehouse: item.warehouse,
+          brand: detectedBrand.toUpperCase(),
           model: nameParts[1] || "Generic",
           type: nameParts[2] || "Standard",
-          qty: Math.round(liveQty),
-          price: bin.valuation_rate || 0,
-        });
+          actual: Math.round(item.actual_qty),       // Total physical stock (9)
+        available: Math.round(item.projected_qty), // What is left to sell (7)
+        reserved: Math.round(item.reserved_qty_for_pos || 0), // The "missing" 2
+          // qty: Math.round(item.projected_qty), // Use projected_qty directly!
+          price: item.valuation_rate || 0,
+        };
+      });
+  }, [rawData, activeWarehouse, search]);
 
-        return acc;
-      }, []);
-    }, [rawData, activeWarehouse, search]);
-
-    const dynamicWarehouses = useMemo(() => {
-      const list = new Set(rawData.bins.map(b => b.warehouse));
-      return ['All', ...Array.from(list)].sort();
-    }, [rawData.bins]);
-
+  // UPDATED: Simple warehouse list extraction
+  const dynamicWarehouses = useMemo(() => {
+    const list = new Set(rawData.map(b => b.warehouse));
+    return ['All', ...Array.from(list)].sort();
+  }, [rawData]);
     return (
       <ThemedView style={styles.container}>
         <View style={styles.header}>
@@ -183,7 +175,7 @@ import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleS
                   </View>
                   
                   <View style={styles.qtyBadge}>
-                    <Text style={styles.qtyCount}>{item.qty}</Text>
+                    <Text style={styles.qtyCount}>{item.available}</Text>
                     <Text style={styles.qtyLabel}>PCS</Text>
                   </View>
                 </View>
@@ -246,7 +238,7 @@ import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleS
     
     qtyBadge: { backgroundColor: '#fff', borderRadius: 16, width: 50, height: 50, justifyContent: 'center', alignItems: 'center' },
     qtyCount: { color: '#000', fontSize: 18, fontWeight: '900' },
-    qtyLabel: { color: '#000', fontSize: 8, fontWeight: 'bold', marginTop: -2 },
+    qtyLabel: { color: '#000', fontSize: 8, fontWeight: 'bold', marginTop: 2 },
 
     pillContainer: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
     innerPill: { backgroundColor: '#161616', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 99, borderWidth: 1, borderColor: '#222' },
@@ -258,7 +250,7 @@ import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleS
     emptyText: { color: '#444', marginTop: 10, fontSize: 14, fontWeight: '600' },
 
 
-    avatarPill: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(76, 175, 80, 0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#4CAF50' },
+    avatarPill: { width: 38, height: 38, borderRadius: 99, backgroundColor: 'rgba(76, 175, 80, 0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1,  },
     avatarLetter: { color: '#4CAF50', fontSize: 18, fontWeight: 'bold' },
-    onlineDot: { position: 'absolute', bottom: -1, right: -1, width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50', borderWidth: 1.5, borderColor: '#000' },
+    onlineDot: { position: 'absolute', bottom: 1, right: -1 , width: 12, height: 12, borderRadius: 99, backgroundColor: '#4CAF50', borderWidth: 1.5, borderColor: '#000' },
   });
