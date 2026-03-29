@@ -37,6 +37,9 @@ const MAPPING = {
 
   // Alternative Filter (more "sliders" style)
   'slider.horizontal.3': 'tune',
+
+  'eye.fill': 'visibility',
+  'eye.slash.fill': 'visibility-off',
 } as IconMapping;
 
 /**
