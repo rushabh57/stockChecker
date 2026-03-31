@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   BackHandler,
+  DeviceEventEmitter,
   Image,
   Modal,
   Pressable,
@@ -34,7 +35,19 @@ export default function PurchaseNoteScreen() {
   const [filterActive, setFilterActive] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener('RESET_EXPLORE_VIEW', () => {
+      // RESET VIRTUAL NAVIGATION
+      setFilterActive(false);
+      setSelectedBrand(null);
+      setSearchQuery('');
+      setShowSummary(false);
+      
+      console.log("Purchase Note Screen Reset!");
+    });
 
+    return () => subscription.remove();
+  }, []);
   useEffect(() => {
     const backAction = () => {
       if (filterActive) { setFilterActive(false); return true; }

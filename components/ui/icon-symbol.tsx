@@ -55,6 +55,7 @@ const MAPPING = {
 
   // User & Settings
   'person.fill': 'person',
+  'lock.fill': 'lock',
   'gearshape.fill': 'settings',
   'ellipsis.circle': 'more-vert',
 

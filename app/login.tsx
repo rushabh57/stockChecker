@@ -1,29 +1,28 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Colors } from '@/constants/Styles';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert, // Add this
-    Keyboard // Add this
-    ,
-
-
-
-
-
-    KeyboardAvoidingView, // Add this
-    Platform,
-    Pressable,
-    StyleSheet,
-    TextInput, // Add this
-    TouchableWithoutFeedback,
-    View
+  ActivityIndicator,
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  TouchableWithoutFeedback,
+  useColorScheme,
+  View
 } from 'react-native';
 
 export default function LoginScreen() {
+    const colorScheme = useColorScheme() ?? 'light';
+    const theme = Colors[colorScheme as keyof typeof Colors];
+    
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -65,41 +64,42 @@ export default function LoginScreen() {
     };
 
   return (
-    <ThemedView style={styles.container}>
-      {/* 1. Wrap in KeyboardAvoidingView */}
+    <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        {/* 2. Dismiss keyboard when tapping empty space */}
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.inner}>
             <View style={styles.content}>
               <View style={styles.header}>
-                <IconSymbol name="lock.shield.fill" size={60} color="#4CAF50" />
-                <ThemedText style={styles.title}>Murlidhar ERP</ThemedText>
-                <ThemedText style={styles.subtitle}>For Login Enter Credentials</ThemedText>
+                {/* Using theme.tint for the shield to keep it consistent with your brand green */}
+                <IconSymbol name="lock.shield.fill" size={60} color={theme.tint} />
+                <ThemedText style={[styles.title, { color: theme.text }]}>Murlidhar ERP</ThemedText>
+                <ThemedText style={[styles.subtitle, { color: theme.textMuted }]}>For Login Enter Credentials</ThemedText>
               </View>
 
               <View style={styles.inputGroup}>
-                <View style={styles.inputPill}>
-                  <IconSymbol name="person.fill" size={18} color="#666" />
+                <View style={[styles.inputPill, { backgroundColor: theme.iconBtn, borderColor: theme.border }]}>
+                  <IconSymbol name="person.fill" size={18} color={theme.textMuted} />
                   <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, { color: theme.text }]} 
                     placeholder="Username" 
-                    placeholderTextColor="#444"
+                    placeholderTextColor={theme.textMuted}
+                    selectionColor={theme.tint}
                     value={username} 
                     onChangeText={setUsername} 
                     autoCapitalize="none"
                   />
                 </View>
 
-                <View style={styles.inputPill}>
-                  <IconSymbol name="lock.fill" size={18} color="#666" />
+                <View style={[styles.inputPill, { backgroundColor: theme.iconBtn, borderColor: theme.border }]}>
+                  <IconSymbol name="lock.fill" size={18} color={theme.textMuted} />
                   <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, { color: theme.text }]} 
                     placeholder="Password" 
-                    placeholderTextColor="#444"
+                    placeholderTextColor={theme.textMuted}
+                    selectionColor={theme.tint}
                     value={password} 
                     onChangeText={setPassword} 
                     secureTextEntry={!showPassword} 
@@ -111,21 +111,25 @@ export default function LoginScreen() {
                     <IconSymbol 
                       name={showPassword ? "eye.fill" : "eye.slash.fill"} 
                       size={20} 
-                      color="#666" 
+                      color={theme.textMuted} 
                     />
                   </Pressable>
                 </View>
               </View>
 
               <Pressable 
-                style={({pressed}) => [styles.button, pressed && {opacity: 0.8}]} 
+                style={({pressed}) => [
+                    styles.button, 
+                    { backgroundColor: theme.primary },
+                    pressed && { opacity: 0.8 }
+                ]} 
                 onPress={handleLogin}
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator color="#000" />
+                  <ActivityIndicator color={theme.background} />
                 ) : (
-                  <ThemedText style={styles.buttonText}>Authorize System</ThemedText>
+                  <ThemedText style={[styles.buttonText, { color: theme.background  }]}>Login</ThemedText>
                 )}
               </Pressable>
             </View>
@@ -137,35 +141,32 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  inner: { flex: 1, justifyContent: 'center' }, // New wrapper to ensure centering
+  container: { flex: 1 },
+  inner: { flex: 1, justifyContent: 'center' },
   content: { paddingHorizontal: 30 },
   header: { alignItems: 'center', marginBottom: 40 },
-  title: { color: '#fff', fontSize: 32, fontWeight: '900', marginTop: 10 },
-  subtitle: { color: '#666', fontSize: 14, marginTop: 5 },
+  title: { fontSize: 32, fontWeight: '900', marginTop: 10 },
+  subtitle: { fontSize: 14, marginTop: 5 },
   inputGroup: { gap: 15, marginBottom: 30 },
   inputPill: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    backgroundColor: '#0A0A0A', 
     borderRadius: 99, 
     paddingHorizontal: 20, 
     height: 60, 
     borderWidth: 1, 
-    borderColor: '#1A1A1A' 
   },
-  input: { flex: 1, color: '#fff', marginLeft: 10, fontSize: 16 },
+  input: { flex: 1, marginLeft: 10, fontSize: 16 },
   eyeButton: {
     padding: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   button: { 
-    backgroundColor: '#4CAF50', 
     height: 60, 
     borderRadius: 99, 
     justifyContent: 'center', 
     alignItems: 'center' 
   },
-  buttonText: { color: '#000', fontSize: 16, fontWeight: '900' }
+  buttonText: { fontSize: 16, fontWeight: '900' }
 });
