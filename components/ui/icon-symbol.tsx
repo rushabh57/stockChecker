@@ -17,6 +17,7 @@ const MAPPING = {
   'house.fill': 'home',
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
+  'chevron.left': 'chevron-left',
   'chevron.right': 'chevron-right',
   "note.text": "description",
   'checklist': 'assignment',           // Good for "carry-out" or tasks
@@ -38,8 +39,30 @@ const MAPPING = {
   // Alternative Filter (more "sliders" style)
   'slider.horizontal.3': 'tune',
 
+  
   'eye.fill': 'visibility',
   'eye.slash.fill': 'visibility-off',
+
+
+  'arrow.down.circle.fill': 'arrow-downward',
+  'arrow.up.circle.fill': 'arrow-upward',
+
+  // Actions
+  'plus': 'add',
+  'xmark': 'close',
+  'xmark.circle.fill': 'cancel',
+  'trash.fill': 'delete',
+
+  // User & Settings
+  'person.fill': 'person',
+  'gearshape.fill': 'settings',
+  'ellipsis.circle': 'more-vert',
+
+  'rectangle.portrait.and.arrow.right': 'logout', 
+  'door.right.hand.open': 'exit-to-app', // Alternative "exit" style
+  'square.stack': 'content-copy',
+  'square.stack.fill': 'layers',
+  
 } as IconMapping;
 
 /**

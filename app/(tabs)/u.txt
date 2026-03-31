@@ -1,264 +1,305 @@
-  import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { getLiveInventory } from '@/constants/api';
-import { useRouter } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+// import { ThemedText } from '@/components/themed-text';
+// import { ThemedView } from '@/components/themed-view';
+// import { IconSymbol } from '@/components/ui/icon-symbol';
+// import { getLiveInventory } from '@/constants/api';
+// import { Colors, GlobalStyles } from '@/constants/Styles'; // Using shared styles
+// import { useRouter } from 'expo-router';
+// import * as SecureStore from 'expo-secure-store';
+// import React, { useCallback, useEffect, useMemo, useState } from 'react';
+// import {
+//   ActivityIndicator,
+//   Alert,
+//   BackHandler,
+//   Image,
+//   Pressable,
+//   RefreshControl,
+//   ScrollView,
+//   StyleSheet,
+//   Text,
+//   TextInput,
+//   useColorScheme,
+//   View
+// } from 'react-native';
 
-  export default function InventoryDashboard() {
-    const router = useRouter();
-    const [rawData, setRawData] = useState({ bins: [], draftSales: [], items: [] });
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [search, setSearch] = useState('');
-    const [activeWarehouse, setActiveWarehouse] = useState('All');
 
-  // CHANGED: State for the dynamic user name
-  const [userName, setUserName] = useState(''); 
 
-  // CHANGED: Effect to load the user name from storage
-  useEffect(() => {
-    const fetchUser = async () => {
-      const storedName = await SecureStore.getItemAsync('user_name');
-      if (storedName) setUserName(storedName);
-    };
-    fetchUser();
-  }, []);
+// export default function InventoryDashboard() {
+//   const colorScheme = useColorScheme() ?? 'light';
+  
+//   // 2. Access the correct color set based on the theme
+//   // Use "as keyof typeof Colors" to prevent the TypeScript red line error
+//   const theme = Colors[colorScheme as keyof typeof Colors];
 
-  const handleLogout = () => {
-    Alert.alert("Sign Out", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      { 
-        text: "Logout", 
-        style: "destructive", 
-        onPress: async () => {
-          // Clean up all user data
-          await SecureStore.deleteItemAsync('frappe_session');
-          await SecureStore.deleteItemAsync('user_name'); 
-          router.replace('/login');
-        } 
-      }
-    ]);
-  };
+//   const router = useRouter();
+//   const [rawData, setRawData] = useState([]);
+//   const [loading, setLoading] = useState(true);
+//   const [refreshing, setRefreshing] = useState(false);
+//   const [search, setSearch] = useState('');
+//   const [activeWarehouse, setActiveWarehouse] = useState('All');
+//   const [userName, setUserName] = useState('Admin');
 
-    const loadData = useCallback(async (isManual = false) => {
-      if (isManual) setRefreshing(true);
-      try {
-        const data = await getLiveInventory();
-        setRawData(data);
-      } catch (err) {
-        console.error("Dashboard Load Error:", err);
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    }, []);
+//   const [viewMode, setViewMode] = useState('CATEGORIES');
+//   const [selectedCategory, setSelectedCategory] = useState(null);
+//   const [selectedBrand, setSelectedBrand] = useState(null);
 
-    useEffect(() => {
-      loadData();
-      const interval = setInterval(() => loadData(), 10000); // Auto-refresh every 10s
-      return () => clearInterval(interval);
-    }, [loadData]);
+//   useEffect(() => {
+//     const fetchUser = async () => {
+//       const storedName = await SecureStore.getItemAsync('user_name');
+//       if (storedName) setUserName(storedName);
+//     };
+//     fetchUser();
+//   }, []);
 
-    const onPullRefresh = () => {
-      setRefreshing(true);
-      loadData(true);
-    };
+//   const handleLogout = async () => {
+//     Alert.alert("Logout", "Are you sure you want to exit?", [
+//       { text: "Cancel", style: "cancel" },
+//       {
+//         text: "Logout", style: "destructive", onPress: async () => {
+//           await SecureStore.deleteItemAsync('user_session');
+//           router.replace('/login');
+//         }
+//       }
+//     ]);
+//   };
 
-    const processedGroups = useMemo(() => {
-      const itemMap = new Map();
-      rawData.items.forEach(i => itemMap.set(i.name, i));
+//   const loadData = useCallback(async (isManual = false) => {
+//     if (isManual) setRefreshing(true);
+//     try {
+//       const data = await getLiveInventory();
+//       setRawData(data);
+//     } catch (err) {
+//       console.error("Dashboard Load Error:", err);
+//     } finally {
+//       setLoading(false);
+//       setRefreshing(false);
+//     }
+//   }, []);
 
-      const salesMap = new Map();
-      rawData.draftSales.forEach(s => {
-        const key = `${s.item_code}_${s.warehouse}`;
-        salesMap.set(key, (salesMap.get(key) || 0) + s.qty);
-      });
+//   useEffect(() => {
+//     loadData();
+//     const interval = setInterval(() => loadData(), 15000);
+//     return () => clearInterval(interval);
+//   }, [loadData]);
 
-      return rawData.bins.reduce((acc, bin) => {
-        const item = itemMap.get(bin.item_code);
-        if (!item) return acc; 
+//   useEffect(() => {
+//     const backAction = () => {
+//       if (viewMode !== 'CATEGORIES') {
+//         goBack();
+//         return true;
+//       }
+//       return false;
+//     };
+//     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+//     return () => backHandler.remove();
+//   }, [viewMode]);
 
-        if (activeWarehouse !== 'All' && bin.warehouse !== activeWarehouse) return acc;
-        if (search && !item.item_name.toLowerCase().includes(search.toLowerCase())) return acc;
+//   const dynamicWarehouses = useMemo(() => {
+//     const list = new Set(rawData.map(b => b.warehouse).filter(Boolean));
+//     return ['All', ...Array.from(list)].sort();
+//   }, [rawData]);
 
-        const key = `${bin.item_code}_${bin.warehouse}`;
-        const liveQty = bin.actual_qty - (bin.reserved_qty || 0) - (salesMap.get(key) || 0);
+//   const processedData = useMemo(() => {
+//     return rawData.map(item => {
+//       const fullName = item.item_name || "";
+//       const nameParts = fullName.split('-');
+//       const category = fullName.toLowerCase().includes('glass') ? 'Glass' : 'Cover';
+//       const rawBrand = (item.brand || nameParts[0] || "OTHER").trim();
 
-        if (liveQty <= 0 && activeWarehouse !== 'All') return acc; 
+//       return {
+//         ...item,
+//         category,
+//         brand: rawBrand,
+//         model: (nameParts[1] || "Generic").trim(),
+//         displayType: (nameParts[2] || "").trim(),
+//         available: Math.round(item.projected_qty || 0),
+//         price: item.valuation_rate || 0,
+//         buyingPrice: item.buying_rate || 0,  // Match the new key from API
+//         sellingPrice: item.selling_rate || 0 // Match the new key from API
+//       };
+//     }).filter(item => activeWarehouse === 'All' || item.warehouse === activeWarehouse);
+//   }, [rawData, activeWarehouse]);
 
-        const nameParts = item.item_name.split('-');
-        acc.push({
-          warehouse: bin.warehouse,
-          brand: (nameParts[0] || "Other").toUpperCase(),
-          model: nameParts[1] || "Generic",
-          type: nameParts[2] || "Standard",
-          qty: Math.round(liveQty),
-          price: bin.valuation_rate || 0,
-        });
+//   const goBack = () => {
+//     setSearch('');
+//     if (viewMode === 'ITEMS') setViewMode('BRANDS');
+//     else if (viewMode === 'BRANDS') setViewMode('CATEGORIES');
+//   };
 
-        return acc;
-      }, []);
-    }, [rawData, activeWarehouse, search]);
+//   const RenderCategories = () => (
+//     <View style={styles.categoryList}>
+//       {['Glass', 'Cover'].map(cat => (
+//         <Pressable key={cat} style={styles.menuCard} onPress={() => { setSelectedCategory(cat); setViewMode('BRANDS'); }}>
+//           <View style={[GlobalStyles.iconBtn , GlobalStyles.cardBadge, { marginRight: 15 }]}>
+//             <IconSymbol name={cat === 'Glass' ? 'square.stack.fill' : 'square.stack'} size={18} color={Colors.accent} />
+//           </View>
+//           <Text style={styles.menuText}>{cat.toUpperCase()}</Text>
+//           <IconSymbol name="chevron.right" size={14} color="#333" />
+//         </Pressable>
+//       ))}
+//     </View>
+//   );
 
-    const dynamicWarehouses = useMemo(() => {
-      const list = new Set(rawData.bins.map(b => b.warehouse));
-      return ['All', ...Array.from(list)].sort();
-    }, [rawData.bins]);
+//   const RenderBrands = () => {
+//     const brands = [...new Set(processedData.filter(i => i.category === selectedCategory).map(i => i.brand))].sort();
+//     return (
+//       <View style={GlobalStyles.brandGrid}>
+//         {brands.map(brand => (
+//           <Pressable key={brand} style={GlobalStyles.brandCard} onPress={() => { setSelectedBrand(brand); setViewMode('ITEMS'); }}>
+//             <View style={GlobalStyles.brandLogoCircle}>
+//               <Image
+//                 source={{ uri: `https://erpnext-209450-0.cloudclusters.net/files/${brand.trim().toLowerCase()}.png` }}
+//                 style={{ width: '70%', height: '70%', resizeMode: 'contain', zIndex: 2 }}
+//               />
+//               <Text style={[styles.brandInitial, { position: 'absolute', zIndex: 1 }]}>
+//                 {brand.trim().charAt(0).toUpperCase()}
+//               </Text>
+//             </View>
+//             <Text style={styles.brandText}>{brand.trim().toUpperCase()}</Text>
+//           </Pressable>
+//         ))}
+//       </View>
+//     );
+//   };
 
-    return (
-      <ThemedView style={styles.container}>
-        <View style={styles.header}>
-          {/* TITLE ROW WITH REFRESH */}
-          <View style={styles.titleRow}>
-            <ThemedText style={styles.title}>Live Stock</ThemedText>
-            <View style={{display:"flex", alignItems:"flex-end" , flexDirection:"row" , gap:8}}>
-            <Pressable 
-              onPress={() => loadData(true)} 
-              disabled={refreshing}
-              style={({pressed}) => [styles.refreshBtn, pressed && {opacity: 0.5}]}
-            >
-              {refreshing ? (
-                <ActivityIndicator size="small" color="#4CAF50" />
-              ) : (
-                <IconSymbol name="arrow.counterclockwise" size={20} color="#4CAF50" />
-              )}
-            </Pressable>
-            <Pressable onPress={handleLogout} style={styles.avatarPill}>
-            <Text style={styles.avatarLetter}>
-              {userName ? userName.charAt(0).toUpperCase() : '?'}
-            </Text>
-            <View style={styles.onlineDot} />
-          </Pressable>
-              </View>
-          </View>
-          
-          {/* PILL SEARCH BAR */}
-          <View style={styles.searchPillContainer}>
-            <IconSymbol name="magnifyingglass" size={18} color="#666" />
-            <TextInput 
-              style={styles.searchBar}
-              placeholder="Search items..."
-              placeholderTextColor="#666"
-              value={search}
-              onChangeText={setSearch}
-            />
-          </View>
+//   const RenderItems = () => {
+//     const items = processedData.filter(i =>
+//       i.category === selectedCategory && i.brand === selectedBrand &&
+//       (i.item_name.toLowerCase().includes(search.toLowerCase()))
+//     );
+//     return items.map((item, idx) => (
+//       <View key={idx} style={GlobalStyles.card}>
+//         <View style={styles.cardTop}>
+//           <View style={{ flex: 1 }}>
+//             <Text style={styles.cardWarehouse}>{item.warehouse.split(' - ')[0]}</Text>
+//             <ThemedText style={styles.modelName}>{item.model}</ThemedText>
+//             <Text style={styles.typeText}>{item.displayType}</Text>
+//           </View>
+//           <View style={styles.qtyBadge}>
+//             <Text style={styles.qtyCount}>{item.available}</Text>
+//             <Text style={styles.qtyLabel}>PCS</Text>
+//           </View>
+//         </View>
+//         <View style={styles.priceContainer}>
+//   <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+//     <View>
+//       <Text style={styles.priceValue}>BUYING ₹{item.buyingPrice.toLocaleString('en-IN')}</Text>
+//     </View>
+//     <View style={{ alignItems: 'flex-end' }}>    
+//       <Text style={[styles.priceValue, { color: '#fff' }]}>selling ₹{item.sellingPrice.toLocaleString('en-IN')}</Text>
+//     </View>
+//   </View>
+// </View>
+//           {/* <Text style={styles.priceValue}>₹{item.price.toLocaleString('en-IN')}</Text> */}
+//         </View>
+//     ));
+//   };
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabRow}>
-              {dynamicWarehouses.map(w => (
-                  <Pressable key={w} onPress={() => setActiveWarehouse(w)} style={styles.tabItem}>
-                      <ThemedText style={[styles.tabText, activeWarehouse === w && styles.activeTabText]}>
-                          {w === 'All' ? 'ALL SHOPS' : w.split(' - ')[0]}
-                      </ThemedText>
-                      {activeWarehouse === w && <View style={styles.activeIndicator} />}
-                  </Pressable>
-              ))}
-          </ScrollView>
-        </View>
-
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onPullRefresh} tintColor="#fff" />}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" style={{marginTop: 50}} />
-          ) : processedGroups.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <IconSymbol size={40} name="exclamationmark.triangle" color="#333" />
-              <ThemedText style={styles.emptyText}>No matching items</ThemedText>
-            </View>
-          ) : (
-            processedGroups.map((item, idx) => (
-              <View key={idx} style={styles.card}>
-                <View style={styles.cardTop}>
-                  <View style={{flex: 1, marginRight: 10}}>
-                    <View style={styles.warehouseBadge}>
-                      <IconSymbol name="mappin.and.ellipse" size={10} color="#4CAF50" />
-                      <Text style={styles.cardWarehouse}> {item.warehouse}</Text>
-                    </View>
-                    <ThemedText style={styles.brandName} numberOfLines={1}>{item.brand}</ThemedText>
-                  </View>
-                  
-                  <View style={styles.qtyBadge}>
-                    <Text style={styles.qtyCount}>{item.qty}</Text>
-                    <Text style={styles.qtyLabel}>PCS</Text>
-                  </View>
-                </View>
-                  
-                <View style={styles.pillContainer}>
-                  <View style={styles.innerPill}><Text style={styles.pillText}>{item.model}</Text></View>
-                  <View style={styles.innerPill}><Text style={styles.pillText}>{item.type}</Text></View>
-                  <View style={[styles.innerPill, styles.pricePill]}>
-                    <Text style={styles.priceValue}>₹{item.price.toLocaleString('en-IN')}</Text>
-                  </View>
-                </View>
-              </View>
-            ))
-          )}
-        </ScrollView>
-      </ThemedView>
-    );
-  }
-
-  const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#000' },
-    header: { paddingHorizontal: 20, paddingTop: 60, backgroundColor: '#000' },
-    titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    title: { color: '#fff', fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
-    refreshBtn: { padding: 8, backgroundColor: '#111', borderRadius: 99, borderWidth: 1, borderColor: '#1A1A1A' },
+//   return (
+//     <ThemedView style={GlobalStyles.container}>
+//       {/* USER HEADER */}
     
-    searchPillContainer: { 
-      flexDirection: 'row', 
-      alignItems: 'center', 
-      backgroundColor: '#111', 
-      borderRadius: 99, 
-      paddingHorizontal: 15, 
-      height: 48, 
-      marginTop: 20,
-      borderWidth: 1, 
-      borderColor: '#1A1A1A' 
-    },
-    searchBar: { flex: 1, color: '#fff', marginLeft: 10, fontSize: 15 },
 
-    tabRow: { flexDirection: 'row', marginTop: 15 },
-    tabItem: { marginRight: 24, paddingVertical: 8, alignItems: 'center' },
-    tabText: { color: '#555', fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
-    activeTabText: { color: '#fff' },
-    activeIndicator: { height: 3, width: 12, backgroundColor: '#4CAF50', borderRadius: 99, marginTop: 4 },
+//       <View style={GlobalStyles.header}>
+//         <View style={GlobalStyles.titleRow}>
+//           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+//             {viewMode !== 'CATEGORIES' && (
+//               <Pressable onPress={goBack} style={GlobalStyles.iconBtn}>
+//                 <IconSymbol name="chevron.left" size={18} color="#fff" />
+//               </Pressable>
+//             )}
+//             <ThemedText style={GlobalStyles.mainTitle}>
+//               {viewMode === 'CATEGORIES' ? 'Live Stock' : viewMode === 'BRANDS' ? selectedCategory : selectedBrand}
+//             </ThemedText>
+//           </View>
+//           <View style={{display:'flex' , gap: 12, flexDirection:'row', alignItems:'center'}}>
+//           <Pressable onPress={() => loadData(true)} style={GlobalStyles.iconBtn}>
+//             {refreshing ? <ActivityIndicator size="small" color={Colors.accent} /> : <IconSymbol name="arrow.counterclockwise" size={18} color={Colors.accent} />}
+//           </Pressable>
+//           <Pressable onPress={handleLogout} style={[GlobalStyles.iconBtn, GlobalStyles.logoutBtn]}>
+//             <IconSymbol name="rectangle.portrait.and.arrow.right" size={18} color={Colors.error} />
+//           </Pressable>
+//           </View>
+//         </View>
 
-    scrollContent: { padding: 16, flexGrow: 1 },
+//         <View style={styles.userHeader}>
+//         <View style={styles.userInfo}>
+//           <View style={styles.avatar}>
+//             <Text style={styles.avatarText}>{userName.charAt(0).toUpperCase()}</Text>
+//           </View>
+//           <View>
+//             <Text style={styles.welcomeText}>Welcome back,</Text>
+//             <Text style={styles.userNameText}>{userName}</Text>
+//           </View>
+//         </View>
 
-    card: { 
-      backgroundColor: '#0A0A0A', 
-      borderRadius: 24, 
-      padding: 16, 
-      marginBottom: 12, 
-      borderWidth: 1, 
-      borderColor: '#161616',
-    },
-    cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-    warehouseBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(76, 175, 80, 0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 99, marginBottom: 6 },
-    cardWarehouse: { color: '#4CAF50', fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase' },
-    brandName: { color: '#fff', fontSize: 22, fontWeight: '900' },
-    
-    qtyBadge: { backgroundColor: '#fff', borderRadius: 16, width: 50, height: 50, justifyContent: 'center', alignItems: 'center' },
-    qtyCount: { color: '#000', fontSize: 18, fontWeight: '900' },
-    qtyLabel: { color: '#000', fontSize: 8, fontWeight: 'bold', marginTop: -2 },
+//       </View>
 
-    pillContainer: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
-    innerPill: { backgroundColor: '#161616', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 99, borderWidth: 1, borderColor: '#222' },
-    pillText: { color: '#888', fontSize: 11, fontWeight: '700' },
-    pricePill: { backgroundColor: 'transparent', borderColor: '#4CAF50' },
-    priceValue: { color: '#4CAF50', fontSize: 12, fontWeight: '800' },
+//         {viewMode !== 'CATEGORIES' && (
+//           <>
+//             {viewMode === 'ITEMS' && (
+//               <View style={[GlobalStyles.searchPill, { marginTop: 10 }]}>
+//                 <IconSymbol name="magnifyingglass" size={18} color={Colors.textMuted} />
+//                 <TextInput 
+//                   style={GlobalStyles.textInput} 
+//                   placeholder="Search models..." 
+//                   placeholderTextColor={Colors.textMuted} 
+//                   value={search} 
+//                   onChangeText={setSearch} 
+//                 />
+//               </View>
+//             )}
+//             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabRow}>
+//               {dynamicWarehouses.map(w => (
+//                 <Pressable key={w} onPress={() => setActiveWarehouse(w)} style={styles.tabItem}>
+//                   <Text style={[styles.tabText, activeWarehouse === w && styles.activeTabText]}>
+//                     {w === 'All' ? 'ALL SHOPS' : w.split(' - ')[0]}
+//                   </Text>
+//                   {activeWarehouse === w && <View style={styles.activeIndicator} />}
+//                 </Pressable>
+//               ))}
+//             </ScrollView>
+//           </>
+//         )}
+//       </View>
 
-    emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 100 },
-    emptyText: { color: '#444', marginTop: 10, fontSize: 14, fontWeight: '600' },
+//       <ScrollView 
+//         contentContainerStyle={{ padding: 16 }} 
+//         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadData(true)} tintColor="#fff" />}
+//       >
+//         {loading && !refreshing ? (
+//           <ActivityIndicator color={Colors.accent} style={{ marginTop: 50 }} />
+//         ) : (
+//           viewMode === 'CATEGORIES' ? <RenderCategories /> : viewMode === 'BRANDS' ? <RenderBrands /> : <RenderItems />
+//         )}
+//       </ScrollView>
+//     </ThemedView>
+//   );
+// }
 
-
-    avatarPill: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(76, 175, 80, 0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#4CAF50' },
-    avatarLetter: { color: '#4CAF50', fontSize: 18, fontWeight: 'bold' },
-    onlineDot: { position: 'absolute', bottom: -1, right: -1, width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50', borderWidth: 1.5, borderColor: '#000' },
-  });
+// const styles = StyleSheet.create({
+//   userHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10,paddingBottom: 5 },
+//   userInfo: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+//   avatar: { width: 42, height: 42, borderRadius: 14, backgroundColor: Colors.cardSecondary, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+//   avatarText: { color: Colors.accent, fontWeight: 'bold', fontSize: 18 },
+//   welcomeText: { color: Colors.textMuted, fontSize: 11 },
+//   userNameText: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
+//   categoryList: { gap: 12 },
+//   menuCard: { width: '100%',  flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: Colors.border, paddingVertical: 12 },
+//   menuText: { color: '#fff', fontWeight: '900', fontSize: 14, flex: 1 },
+//   brandInitial: { color: Colors.textDark, fontSize: 26, fontWeight: 'bold' },
+//   brandText: { color: Colors.textMuted, marginTop: 8, fontSize: 10, fontWeight: '800', textAlign: 'center' },
+//   cardTop: { flexDirection: 'row', justifyContent: 'space-between' },
+//   cardWarehouse: { color: Colors.accent, fontSize: 10, fontWeight: '800', marginBottom: 4 },
+//   modelName: { color: '#fff', fontSize: 18, fontWeight: '800' },
+//   typeText: { color: Colors.textMuted, fontSize: 12, marginTop: 2 },
+//   qtyBadge: { backgroundColor: '#fff', borderRadius: 14, width: 48, height: 48, justifyContent: 'center', alignItems: 'center' },
+//   qtyCount: { color: '#000', fontSize: 18, fontWeight: '900' },
+//   qtyLabel: { color: '#000', fontSize: 8, fontWeight: 'bold' },
+//   priceContainer: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border },
+//   priceValue: { color: Colors.accent, fontWeight: '900' },
+//   tabRow: { flexDirection: 'row', marginTop: 15 },
+//   tabItem: { marginRight: 22, paddingVertical: 8 },
+//   tabText: { color: '#444', fontSize: 12, fontWeight: '800' },
+//   activeTabText: { color: '#fff' },
+//   activeIndicator: { height: 3, width: 12, backgroundColor: Colors.accent, borderRadius: 99, marginTop: 4, alignSelf: 'center' }
+// });

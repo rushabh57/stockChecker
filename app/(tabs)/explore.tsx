@@ -2,49 +2,78 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getLiveInventory } from '@/constants/api';
+import { Colors, GlobalStyles } from '@/constants/Styles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  BackHandler,
+  Image,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useColorScheme,
+  View
+} from 'react-native';
 
 export default function PurchaseNoteScreen() {
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme as keyof typeof Colors];
+  
+  const navigation = useNavigation();
   const [items, setItems] = useState([]);
   const [purchaseList, setPurchaseList] = useState([]);
-  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false); // For refresh state
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterActive, setFilterActive] = useState(false); 
+  const [filterActive, setFilterActive] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
 
-  // Reusable fetch function
+  useEffect(() => {
+    const backAction = () => {
+      if (filterActive) { setFilterActive(false); return true; }
+      if (selectedBrand) { setSelectedBrand(null); return true; }
+      return false;
+    };
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+    return () => backHandler.remove();
+  }, [selectedBrand, filterActive]);
+
   const initializeData = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) setRefreshing(true);
     else setLoading(true);
 
     try {
       const data = await getLiveInventory();
-      const actualProducts = data.items.filter((i: any) => i.status !== 'Template');
+      const actualProducts = data.filter((i: any) => {
+        const name = (i.item_name || "").toLowerCase().trim();
+        return i.has_variants !== 1 && !name.includes('glass') && i.disabled !== 1;
+      });
       setItems(actualProducts);
 
       const savedNotes = await AsyncStorage.getItem('purchase_notes');
       const lastSaveTime = await AsyncStorage.getItem('note_reset_time');
-      
+
       if (lastSaveTime && Date.now() - parseInt(lastSaveTime) < 8 * 60 * 60 * 1000) {
         if (savedNotes) setPurchaseList(JSON.parse(savedNotes));
       } else {
-        clearAllNotes();
+        await clearAllNotes();
       }
     } catch (err) {
-      console.error(err);
+      console.error("Fetch Error:", err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => {
-    initializeData();
-  }, [initializeData]);
+  useEffect(() => { initializeData(); }, [initializeData]);
 
   const clearAllNotes = async () => {
     setPurchaseList([]);
@@ -54,40 +83,17 @@ export default function PurchaseNoteScreen() {
     setFilterActive(false);
   };
 
-  const groupedItems = useMemo(() => {
-    let filtered = items;
-    if (searchQuery) {
-      filtered = filtered.filter((i: any) => i.item_name.toLowerCase().includes(searchQuery.toLowerCase()));
-    }
-    if (filterActive) {
-      filtered = filtered.filter((i: any) => {
-        const row = purchaseList.find(p => p.id === i.name);
-        const targetVal = row?.target ?? i.target_qty;
-        return targetVal && targetVal !== '0' && targetVal !== 0;
-      });
-    }
-    return filtered.reduce((acc: any, item: any) => {
-      const parts = item.item_name.split('-'); 
-      const brand = parts[0] || 'Other';
-      const model = parts[1] || '';
-      const groupTitle = `${brand}${model ? ` (${model})` : ''}`;
-      if (!acc[groupTitle]) acc[groupTitle] = [];
-      acc[groupTitle].push(item);
-      return acc;
-    }, {});
-  }, [items, searchQuery, filterActive, purchaseList]);
-
   const updateField = async (item: any, field: 'target' | 'actual', value: string) => {
-    const existing = purchaseList.find((p: any) => p.id === item.name);
+    const existing = purchaseList.find((p: any) => p.id === item.item_code);
     let newList;
     if (existing) {
-      newList = purchaseList.map((p: any) => p.id === item.name ? { ...p, [field]: value } : p);
+      newList = purchaseList.map((p: any) => p.id === item.item_code ? { ...p, [field]: value } : p);
     } else {
-      newList = [...purchaseList, { 
-        id: item.name, 
-        name: item.item_name, 
-        target: field === 'target' ? value : (item.target_qty || '0'),
-        actual: field === 'actual' ? value : (item.purchase_qty || '0')
+      newList = [...purchaseList, {
+        id: item.item_code,
+        name: item.item_name,
+        target: field === 'target' ? value : '0',
+        actual: field === 'actual' ? value : '0'
       }];
     }
     setPurchaseList(newList);
@@ -95,129 +101,188 @@ export default function PurchaseNoteScreen() {
     await AsyncStorage.setItem('note_reset_time', Date.now().toString());
   };
 
-  return (
-    <ThemedView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.titleRow}>
-          <ThemedText style={styles.title}>Market Note</ThemedText>
-          <Pressable 
-            onPress={() => initializeData(true)} 
-            disabled={refreshing}
-            style={({pressed}) => [styles.refreshBtn, pressed && {opacity: 0.5}]}
-          >
-            {refreshing ? (
-              <ActivityIndicator size="small" color="#4CAF50" />
-            ) : (
-              <IconSymbol name="arrow.counterclockwise" size={20} color="#4CAF50" />
-            )}
-          </Pressable>
+  const filteredModels = useMemo(() => {
+    if (filterActive) {
+      return items.filter((i: any) => {
+        const note = purchaseList.find((p: any) => p.id === i.item_code);
+        const hasData = note && (parseInt(note.target) > 0 || parseInt(note.actual) > 0);
+        return hasData && i.item_name.toLowerCase().includes(searchQuery.toLowerCase().trim());
+      });
+    }
+    let list = items;
+    if (selectedBrand) {
+      list = list.filter((i: any) => i.item_name.split('-')[0]?.trim() === selectedBrand);
+    }
+    if (searchQuery) {
+      list = list.filter((i: any) => i.item_name.toLowerCase().includes(searchQuery.toLowerCase().trim()));
+    }
+    return list;
+  }, [items, selectedBrand, searchQuery, filterActive, purchaseList]);
+
+  const brands = useMemo(() => {
+    const uniqueBrands = new Set(items.map((i: any) => i.item_name.split('-')[0]?.trim()));
+    return Array.from(uniqueBrands).sort();
+  }, [items]);
+
+  const renderItemCard = (item: any) => {
+    const note = purchaseList.find((p: any) => p.id === item.item_code);
+    const parts = item.item_name.split('-');
+    const brandLabel = parts[0]?.trim() || '';
+    const modelName = parts[1]?.trim() || '';
+    const variant = parts[2]?.trim() || 'Standard';
+
+    return (
+      <View key={item.item_code} style={[GlobalStyles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View style={styles.itemMainInfo}>
+          <View style={{ flex: 1 }}>
+            {filterActive && <Text style={[styles.brandBadge , {color: theme.text}]}>{brandLabel.toUpperCase()}</Text>}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <ThemedText style={[styles.modelNameText, { color: theme.text }]}>{modelName}</ThemedText>
+            <Text style={[styles.variantName, { color: theme.textMuted  , backgroundColor: theme.primary + "20"}]}>{variant}</Text>
+            </View>
+          </View>
+          <View style={styles.priceContainer}>
+             <Text style={[styles.priceText, { color: theme.refreshtint }]}>₹{item.buying_rate  || '0'}</Text>
+          </View>
         </View>
-        
-        <View style={styles.topActions}>
-          <View style={styles.searchPill}>
-            <IconSymbol name="magnifyingglass" size={18} color="#666" />
+        <View style={styles.inputsRow}>
+          <View style={[styles.pillInput, { backgroundColor: theme.iconBtn, borderColor: theme.border }, (parseInt(note?.target) > 0) && {backgroundColor: colorScheme === 'dark' ? 'rgba(255, 217, 0, 0.57)' : '#FFFDE7' }]}>
+            <Text style={[styles.pillLabel, { color: theme.textMuted }]}>TGT</Text>
             <TextInput
-              style={styles.searchBar}
-              placeholder="Search brand/model..."
-              placeholderTextColor="#666"
+              style={[styles.pillValue, { color: theme.text }]}
+              keyboardType="numeric"
+              placeholder="0"
+              placeholderTextColor={theme.textMuted}
+              value={note?.target?.toString() ?? ''}
+              onChangeText={(v) => updateField(item, 'target', v)}
+            />
+          </View>
+          <View style={[styles.pillInput, { backgroundColor: theme.iconBtn, borderColor: theme.border }, (parseInt(note?.actual) > 0) && { backgroundColor: colorScheme === 'dark' ? 'rgba(76, 175, 79, 0.51)' : '#E8F5E9' }]}>
+            <Text style={[styles.pillLabel, { color: theme.textMuted }]}>ACT</Text>
+            <TextInput
+              style={[styles.pillValue, { color: theme.text }]}
+              keyboardType="numeric"
+              placeholder="0"
+              placeholderTextColor={theme.textMuted}
+              value={note?.actual?.toString() ?? ''}
+              onChangeText={(v) => updateField(item, 'actual', v)}
+            />
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <ThemedView style={[GlobalStyles.container, { backgroundColor: theme.background }]}>
+      <View style={GlobalStyles.header}>
+        <View style={GlobalStyles.titleRow}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {(selectedBrand || filterActive) && (
+        <Pressable 
+          style={[GlobalStyles.iconBtn , {marginRight: -16}]}
+          onPress={() => {
+            if (filterActive) setFilterActive(false);
+            else if (selectedBrand) setSelectedBrand(null);
+          }}
+        >
+          <IconSymbol name="chevron.left" size={18} color={theme.text} />
+        </Pressable>
+          )}
+
+          <ThemedText style={[GlobalStyles.mainTitle, { color: theme.text }]}>
+            {filterActive ? "Summary" : (selectedBrand || "Market Note")}
+          </ThemedText>
+        </View>
+            <View style={{display:'flex' , gap: 12, flexDirection:'row', alignItems:'center'}}>
+            {/* GREEN SHADE REFRESH BUTTON */}
+              <Pressable 
+                          onPress={() => initializeData(true)} 
+                        style={[
+                          GlobalStyles.iconBtn, 
+                          { backgroundColor: theme.refreshBg } // Distinct green shade background
+                        ]}>
+                          {refreshing 
+                          ? 
+                          <ActivityIndicator size="small" color={theme.refreshtint + '20'} /> 
+                          : 
+                          <IconSymbol name="arrow.counterclockwise" size={18} color={theme.refreshtint} />}
+               </Pressable>
+            <Pressable 
+              style={[GlobalStyles.iconBtn, { backgroundColor: theme.iconBtn }, filterActive && { borderColor: theme.noteting, backgroundColor: theme.noteBg }]} 
+              onPress={() => setFilterActive(!filterActive)}
+            >
+              <IconSymbol name="list.bullet.clipboard" size={20} color={filterActive ? theme.tint : theme.textMuted} />
+            </Pressable>
+
+            <Pressable style={[GlobalStyles.iconBtn,  { backgroundColor: theme.filterBg }]} onPress={() => setShowSummary(true)}>
+              <IconSymbol name="slider.horizontal.3" size={20} color={theme.tint} />
+            </Pressable>
+          </View>
+  </View>
+
+        {(selectedBrand || filterActive) && (
+          <View style={[GlobalStyles.searchPill, { marginTop: 10, backgroundColor: theme.iconBtn }]}>
+            <IconSymbol name="magnifyingglass" size={16} color={theme.textMuted} />
+            <TextInput
+              style={[GlobalStyles.textInput, { color: theme.text }]}
+              placeholder="Search items..."
+              placeholderTextColor={theme.textMuted}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
           </View>
-
-          <Pressable 
-            style={[styles.actionIconPill, filterActive && styles.activeFilterPill]} 
-            onPress={() => setFilterActive(!filterActive)}
-          >
-            <IconSymbol name={filterActive ? "list.bullet" : "list.bullet.clipboard"} size={18} color={filterActive ? "#fff" : "#666"} />
-          </Pressable>
-
-          <Pressable style={styles.actionIconPill} onPress={() => setShowSummary(true)}>
-            <IconSymbol name="line.3.horizontal.decrease.circle" size={18} color="#666" />
-          </Pressable>
-        </View>
+        )}
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {loading ? (
-          <ActivityIndicator color="#FFD700" style={{ marginTop: 50 }} />
-        ) : Object.keys(groupedItems).length === 0 ? (
-          <Text style={styles.emptyText}>No items found</Text>
+      <ScrollView 
+        contentContainerStyle={{ padding: 16 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => initializeData(true)} tintColor={theme.tint} />}
+      >
+        {loading && !refreshing ? (
+          <ActivityIndicator color={theme.tint} style={{ marginTop: 20 }} />
         ) : (
-          Object.keys(groupedItems).sort().map(groupTitle => (
-            <View key={groupTitle} style={styles.accordionSection}>
-              <Pressable 
-                style={styles.accordionHeader} 
-                onPress={() => setExpandedGroups(prev => prev.includes(groupTitle) ? prev.filter(t => t !== groupTitle) : [...prev, groupTitle])}
-              >
-                <ThemedText style={styles.groupTitle}>{groupTitle}</ThemedText>
-                <IconSymbol name={(expandedGroups.includes(groupTitle) || filterActive) ? "chevron.up" : "chevron.down"} size={14} color="#FFD700" />
-              </Pressable>
-
-              {(expandedGroups.includes(groupTitle) || filterActive) && (
-                <View style={styles.itemContainer}>
-                  {groupedItems[groupTitle].map((item: any) => {
-                    const rowData = purchaseList.find((p: any) => p.id === item.name);
-                    const variant = item.item_name.split('-')[2] || 'Standard';
-                    return (
-                      <View key={item.name} style={styles.itemRow}>
-                        <View style={styles.itemMainInfo}>
-                          <ThemedText style={styles.variantName}>{variant}</ThemedText>
-                          <Text style={styles.priceTag}>₹{item.valuation_rate || '0'}</Text>
-                        </View>
-                        <View style={styles.inputsRow}>
-                          <View style={[styles.pillInput, (rowData?.target > 0) && styles.targetActive]}>
-                            <Text style={styles.pillLabel}>TARGET</Text>
-                            <TextInput 
-                              style={styles.pillValue} 
-                              keyboardType="numeric" 
-                              placeholder="0"
-                              placeholderTextColor="#333"
-                              value={rowData?.target ?? item.target_qty?.toString() ?? ''} 
-                              onChangeText={(v) => updateField(item, 'target', v)}
-                            />
-                          </View>
-                          <View style={[styles.pillInput, (rowData?.actual > 0) && styles.actualActive]}>
-                            <Text style={styles.pillLabel}>ACTUAL</Text>
-                            <TextInput 
-                              style={styles.pillValue} 
-                              keyboardType="numeric" 
-                              placeholder="0"
-                              placeholderTextColor="#333"
-                              value={rowData?.actual ?? item.purchase_qty?.toString() ?? ''} 
-                              onChangeText={(v) => updateField(item, 'actual', v)}
-                            />
-                          </View>
-                        </View>
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
+          (selectedBrand || filterActive) ? (
+            filteredModels.length > 0 ? filteredModels.map(renderItemCard) : (
+              <View style={styles.emptyContainer}><Text style={[styles.emptyText, { color: theme.textMuted }]}>No items found.</Text></View>
+            )
+          ) : (
+            <View style={GlobalStyles.brandGrid}>
+              {brands.map(brand => (
+                <Pressable key={brand} style={[GlobalStyles.brandCard]} onPress={() => setSelectedBrand(brand)}>
+                  <View style={[GlobalStyles.brandLogoCircle, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                    <Image
+                      source={{ uri: `https://erpnext-209450-0.cloudclusters.net/files/${brand.trim().toLowerCase()}.png` }}
+                      style={{ width: '70%', height: '70%', resizeMode: 'contain' }}
+                    />
+                    <Text style={[styles.brandInitial, { position: 'absolute', zIndex: -1, color: theme.textMuted }]}>
+                      {brand.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <Text style={[styles.brandText, { color: theme.textMuted }]}>{brand.toUpperCase()}</Text>
+                </Pressable>
+              ))}
             </View>
-          ))
+          )
         )}
       </ScrollView>
 
-      {/* SUMMARY MODAL */}
       <Modal visible={showSummary} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setShowSummary(false)}>
-          <View style={styles.popoverCard}>
+        <Pressable style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={() => setShowSummary(false)}>
+          <View style={[styles.popoverCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <View style={styles.popoverHeader}>
-              <ThemedText style={{fontSize: 18, fontWeight: 'bold'}}>Market Summary</ThemedText>
-              <Pressable onPress={clearAllNotes} style={styles.clearBtn}>
-                <Text style={{color: '#ff4444', fontWeight: 'bold', fontSize: 11}}>RESET</Text>
+              <ThemedText style={{ fontSize: 18, fontWeight: 'bold', color: theme.text }}>Review Note</ThemedText>
+              <Pressable onPress={clearAllNotes} style={[styles.clearBtn, { backgroundColor: colorScheme === 'dark' ? 'rgba(255,82,82,0.1)' : '#FFEBEE' }]}>
+                <Text style={{ color: theme.error, fontWeight: 'bold', fontSize: 11 }}>RESET</Text>
               </Pressable>
             </View>
-            <ScrollView style={{maxHeight: 400}}>
-              {purchaseList.filter(p => parseInt(p.target) > 0).map(p => (
-                <View key={p.id} style={styles.summaryRow}>
-                  <View style={{flex: 1}}>
-                    <Text style={{color: '#fff', fontSize: 13}} numberOfLines={1}>{p.name}</Text>
-                  </View>
-                  <View style={styles.summaryStats}>
-                    <Text style={{color: '#FFD700', fontSize: 12}}>T: {p.target}</Text>
-                    <Text style={{color: '#4CAF50', fontSize: 12, marginLeft: 10}}>A: {p.actual || 0}</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {purchaseList.filter(p => parseInt(p.target) > 0 || parseInt(p.actual) > 0).map(p => (
+                <View key={p.id} style={[styles.summaryRow, { borderBottomColor: theme.border }]}>
+                  <Text style={{ color: theme.text, flex: 1, fontSize: 13 }}>{p.name}</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <View style={[styles.statPill, { backgroundColor: theme.iconBtn, borderColor: theme.border }]}><Text style={{ color: theme.tint, fontSize: 10 }}>T: {p.target}</Text></View>
+                    <View style={[styles.statPill, { backgroundColor: theme.iconBtn, borderColor: theme.border }]}><Text style={{ color: theme.tint, fontSize: 10 }}>A: {p.actual}</Text></View>
                   </View>
                 </View>
               ))}
@@ -230,39 +295,24 @@ export default function PurchaseNoteScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  header: { paddingHorizontal: 20, paddingTop: 60 },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { color: '#fff', fontSize: 28, fontWeight: 'bold' },
-  refreshBtn: { padding: 8, backgroundColor: '#111', borderRadius: 99, borderWidth: 1, borderColor: '#1A1A1A' },
-  topActions: { flexDirection: 'row', gap: 8, marginTop: 15, alignItems: 'center' },
-  searchPill: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', borderRadius: 99, paddingHorizontal: 15, height: 50, borderWidth: 1, borderColor: '#1A1A1A' },
-  searchBar: { flex: 1, fontSize: 14, color: '#fff', marginLeft: 8 },
-  actionIconPill: { width: 42, height: 42, borderRadius: 99, backgroundColor: '#111', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#1A1A1A' },
-  activeFilterPill: { backgroundColor: '#4CAF50', borderColor: '#4CAF50' },
-  
-  scrollContent: { padding: 15 },
-  accordionSection: { backgroundColor: '#0A0A0A', borderRadius: 24, marginBottom: 12, borderWidth: 1, borderColor: '#161616', overflow: 'hidden' },
-  accordionHeader: { flexDirection: 'row', justifyContent: 'space-between', padding: 18, backgroundColor: '#0F0F0F' },
-  groupTitle: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  itemContainer: { padding: 12, backgroundColor: '#050505' },
-  itemRow: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#111', gap: 12 },
-  itemMainInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  variantName: { color: '#eee', fontSize: 13, fontWeight: '600' },
-  priceTag: { color: '#444', fontSize: 11, fontWeight: 'bold' },
-  
-  inputsRow: { flexDirection: 'row', gap: 10 },
-  pillInput: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', borderRadius: 99, paddingHorizontal: 12, height: 36, borderWidth: 1, borderColor: '#1A1A1A' },
-  targetActive: { borderColor: '#FFD700', backgroundColor: 'rgba(255, 215, 0, 0.05)' },
-  actualActive: { borderColor: '#4CAF50', backgroundColor: 'rgba(76, 175, 80, 0.05)' },
-  pillLabel: { color: '#555', fontSize: 8, fontWeight: '900', marginRight: 6 },
-  pillValue: { color: '#fff', fontSize: 14, fontWeight: 'bold', flex: 1, textAlign: 'center', padding: 0 },
-
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
-  popoverCard: { width: '90%', backgroundColor: '#0F0F0F', borderRadius: 30, padding: 25, borderWidth: 1, borderColor: '#222' },
-  popoverHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 25, alignItems: 'center' },
-  clearBtn: { backgroundColor: 'rgba(255,68,68,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  summaryRow: { flexDirection: 'row', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1A1A1A', alignItems: 'center' },
-  summaryStats: { flexDirection: 'row', alignItems: 'center' },
-  emptyText: { color: '#333', textAlign: 'center', marginTop: 100, fontWeight: 'bold' }
+  itemMainInfo: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
+  brandBadge: { fontSize: 8, fontWeight: 'bold', marginBottom: 6 },
+  modelNameText: { fontSize: 16, fontWeight: '800' },
+  variantName: { fontSize: 11, borderRadius:99, paddingHorizontal: 6, paddingVertical: 2, fontWeight: '600', marginLeft: 4 },
+  priceContainer: { paddingHorizontal: 5, paddingVertical: 4, borderRadius: 8 },
+  priceText: { fontWeight: '900', fontSize: 12 },
+  inputsRow: { flexDirection: 'row', gap: 8 },
+  pillInput: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 99, paddingHorizontal: 12, height: 40, borderWidth: 1 },
+  pillLabel: { fontSize: 8, fontWeight: 'bold', marginRight: 8 },
+  pillValue: { fontSize: 16, fontWeight: '900', flex: 1, textAlign: 'center' },
+  brandInitial: { fontSize: 24, fontWeight: 'bold' },
+  brandText: { fontSize: 10, fontWeight: '800', marginTop: 8, textAlign: 'center' },
+  emptyContainer: { alignItems: 'center', marginTop: 40 },
+  emptyText: { fontSize: 12 },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  popoverCard: { borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 25, height: '70%', borderWidth: 1 },
+  popoverHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  clearBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  summaryRow: { flexDirection: 'row', paddingVertical: 15, borderBottomWidth: 1, alignItems: 'center' },
+  statPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 }
 });
