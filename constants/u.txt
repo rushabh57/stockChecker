@@ -11,7 +11,6 @@
 //   },
 // });
 
-// // Attach Session Cookie to every request automatically
 // api.interceptors.request.use(async (config) => {
 //   const sessionCookie = await SecureStore.getItemAsync('frappe_session');
 //   if (sessionCookie) {
@@ -20,24 +19,15 @@
 //   return config;
 // });
 
-// /**
-//  * LOGIN FUNCTION
-//  */
 // export const login = async (username, password) => {
 //   try {
 //     const response = await api.post('/api/method/login', {
 //       usr: username,
 //       pwd: password,
 //     });
-
-//     // 1. Capture the session cookie from headers
 //     const cookie = response.headers['set-cookie'];
-//     if (cookie) {
-//       // In Axios, set-cookie is an array; we take the first element
-//       await SecureStore.setItemAsync('frappe_session', cookie[0]);
-//     }
-
-//     // 2. Capture and save the full name for the Dashboard Avatar
+//     if (cookie) await SecureStore.setItemAsync('frappe_session', cookie[0]);
+    
 //     const fullName = response.data.full_name || username;
 //     await SecureStore.setItemAsync('user_name', fullName);
 
@@ -48,46 +38,84 @@
 //   }
 // };
 
-// /**
-//  * FETCH LIVE INVENTORY DATA
-//  * Uses the "Stock Projected Qty" Query Report for maximum accuracy.
-//  */
-// export const getLiveInventory = async () => {
+
+// export const getLiveInventory = async (searchQuery = '') => {
 //   try {
-//     // 1. Fetch the Stock Report (Quantities)
-//     // 2. Fetch the Item Master (Prices/Valuation)
-//     const [reportRes, itemRes] = await Promise.all([
+//     const itemFilters = { disabled: 0 };
+    
+//     // FIX: Use a simple string for reportFilters. 
+//     // Most ERPNext script reports handle string filters as a 'LIKE' automatically
+//     // or through a simpler internal mapping.
+//     const reportFilters = {};
+
+//     if (searchQuery) {
+//       // Standard resource calls (api/resource/Item) handle the array syntax fine.
+//       itemFilters.item_name = ["like", `%${searchQuery}%` ];
+      
+//       // FIX: Change this to a simple string to avoid the 500 SQL Syntax Error
+//       reportFilters.item_code = searchQuery; 
+//     }
+
+//     const [reportRes, priceRes, itemRes] = await Promise.all([
 //       api.get('/api/method/frappe.desk.query_report.run', {
-//         params: { report_name: 'Stock Projected Qty' }
+//         params: { 
+//           report_name: 'Stock Projected Qty' ,
+//           // Ensure this is a clean JSON string
+//           filters: JSON.stringify(reportFilters)
+//         }
+//       }),
+//       api.get('/api/resource/Item Price', {
+//         params: { 
+//           fields: JSON.stringify(["item_code", "price_list", "price_list_rate"]),
+//           limit_page_length: 5000 
+//         }
 //       }),
 //       api.get('/api/resource/Item', {
 //         params: { 
-//           fields: JSON.stringify(["name", "standard_rate", "valuation_rate"]),
-//           limit: 2000 
+//           fields: JSON.stringify(["name", "item_name", "has_variants", "disabled"]),
+//           limit_page_length: 2000 ,
+//           filters: JSON.stringify(itemFilters),
 //         }
 //       })
 //     ]);
 
 //     const stockData = reportRes.data.message?.result || [];
-//     const items = itemRes.data.data || [];
+//     const priceListData = priceRes.data.data || [];
+//     const itemMasterData = itemRes.data.data || [];
 
-//     // Create a quick lookup map for prices
-//     const priceMap = new Map(items.map(i => [i.name, i.standard_rate || i.valuation_rate || 0]));
+//     const priceMap = new Map();
+//     priceListData.forEach(p => {
+//       if (!priceMap.has(p.item_code)) {
+//         priceMap.set(p.item_code, { buying: 0, selling: 0 });
+//       }
+//       const entry = priceMap.get(p.item_code);
+//       if (p.price_list === "Standard Buying") entry.buying = p.price_list_rate;
+//       if (p.price_list === "Standard Selling") entry.selling = p.price_list_rate;
+//     });
 
-//     // 3. Merge the price into the stock report data
+//     const itemMap = new Map(itemMasterData.map(i => [i.name, i]));
+
 //     const cleanData = stockData
-//       .filter(row => row && typeof row === 'object' && !Array.isArray(row) && row.item_code)
-//       .map(row => ({
-//         ...row,
-//         // Manually inject the price into the row object
-//         valuation_rate: priceMap.get(row.item_code) || 0 
-//       }));
+//       .filter(row => row && row.item_code)
+//       .map(row => {
+//         const master = itemMap.get(row.item_code) || {};
+//         const prices = priceMap.get(row.item_code) || { buying: 0, selling: 0 };
+        
+//         return {
+//           ...row,
+//           item_name: master.item_name || row.item_name, 
+//           buying_rate: prices.buying,
+//           selling_rate: prices.selling
+//         };
+//       });
 
 //     return cleanData;
 //   } catch (error) {
-//     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-//       await SecureStore.deleteItemAsync('frappe_session');
-//       await SecureStore.deleteItemAsync('user_name');
+//     if (error.response) {
+//       console.error("Data:", error.response.data);
+//       console.error("Status:", error.response.status);
+//     } else {
+//       console.error("Error Message:", error.message);
 //     }
 //     throw error;
 //   }
