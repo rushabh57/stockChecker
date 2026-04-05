@@ -11,7 +11,7 @@ export const Colors = {
       accent: '#4CAF50',     // Your signature Green
       error: '#FF5252',
       iconBtn: '#F0F2F5',
-      cardSecondary: '#FFFFFF',
+      cardSecondary: 'whitesmoke',
       textDark: '#11181C',
       tint: '#000',
 
@@ -61,7 +61,7 @@ export const Colors = {
       accent: '#4CAF50',
       error: '#FF5252',
       iconBtn: '#111111',
-      cardSecondary: '#0A0A0A',
+      cardSecondary: '#262626',
       textDark: '#000000',
     },
   };

@@ -64,6 +64,14 @@ const MAPPING = {
   'square.stack': 'content-copy',
   'square.stack.fill': 'layers',
   
+  'calendar': 'event', // Fixed: 'calendar' usually maps to 'event' or 'today'
+  'mappin.and.ellipse': 'place', // Good for the Warehouse location
+  'arrow.down.doc.fill': 'file-download', // For your PDF Download button
+  'cube.fill': 'inventory', // For "Item Groups" or general stock
+  'square.grid.3x3.fill': 'grid-view', // For "Glasses" or grid layouts
+  'iphone': 'smartphone', // For "Covers" or mobile items
+
+  
 } as IconMapping;
 
 /**

@@ -1,350 +1,18 @@
-// import { ThemedText } from '@/components/themed-text';
-// import { ThemedView } from '@/components/themed-view';
-// import { IconSymbol } from '@/components/ui/icon-symbol';
-// import { getLiveInventory } from '@/constants/api';
-// import { Colors, GlobalStyles } from '@/constants/Styles';
-// import AsyncStorage from '@react-native-async-storage/async-storage';
-// import { useNavigation } from '@react-navigation/native';
-// import React, { useCallback, useEffect, useMemo, useState } from 'react';
-// import {
-//   ActivityIndicator,
-//   BackHandler,
-//   DeviceEventEmitter,
-//   Image,
-//   Modal,
-//   Pressable,
-//   RefreshControl,
-//   ScrollView,
-//   StyleSheet,
-//   Text,
-//   TextInput,
-//   useColorScheme,
-//   View
-// } from 'react-native';
-
-// export default function PurchaseNoteScreen() {
-//   const colorScheme = useColorScheme() ?? 'light';
-//   const theme = Colors[colorScheme as keyof typeof Colors];
-  
-//   const navigation = useNavigation();
-//   const [items, setItems] = useState([]);
-//   const [purchaseList, setPurchaseList] = useState([]);
-//   const [loading, setLoading] = useState(true);
-//   const [refreshing, setRefreshing] = useState(false);
-//   const [searchQuery, setSearchQuery] = useState('');
-//   const [filterActive, setFilterActive] = useState(false);
-//   const [showSummary, setShowSummary] = useState(false);
-//   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
-//   useEffect(() => {
-//     const subscription = DeviceEventEmitter.addListener('RESET_EXPLORE_VIEW', () => {
-//       // RESET VIRTUAL NAVIGATION
-//       setFilterActive(false);
-//       setSelectedBrand(null);
-//       setSearchQuery('');
-//       setShowSummary(false);
-      
-//       console.log("Purchase Note Screen Reset!");
-//     });
-
-//     return () => subscription.remove();
-//   }, []);
-//   useEffect(() => {
-//     const backAction = () => {
-//       if (filterActive) { setFilterActive(false); return true; }
-//       if (selectedBrand) { setSelectedBrand(null); return true; }
-//       return false;
-//     };
-//     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-//     return () => backHandler.remove();
-//   }, [selectedBrand, filterActive]);
-
-//   const initializeData = useCallback(async (isManualRefresh = false) => {
-//     if (isManualRefresh) setRefreshing(true);
-//     else setLoading(true);
-
-//     try {
-//       const data = await getLiveInventory();
-//       const actualProducts = data.filter((i: any) => {
-//         const name = (i.item_name || "").toLowerCase().trim();
-//         return i.has_variants !== 1 && !name.includes('glass') && i.disabled !== 1;
-//       });
-//       setItems(actualProducts);
-
-//       const savedNotes = await AsyncStorage.getItem('purchase_notes');
-//       const lastSaveTime = await AsyncStorage.getItem('note_reset_time');
-
-//       if (lastSaveTime && Date.now() - parseInt(lastSaveTime) < 8 * 60 * 60 * 1000) {
-//         if (savedNotes) setPurchaseList(JSON.parse(savedNotes));
-//       } else {
-//         await clearAllNotes();
-//       }
-//     } catch (err) {
-//       console.error("Fetch Error:", err);
-//     } finally {
-//       setLoading(false);
-//       setRefreshing(false);
-//     }
-//   }, []);
-
-//   useEffect(() => { initializeData(); }, [initializeData]);
-
-//   const clearAllNotes = async () => {
-//     setPurchaseList([]);
-//     await AsyncStorage.removeItem('purchase_notes');
-//     await AsyncStorage.removeItem('note_reset_time');
-//     setShowSummary(false);
-//     setFilterActive(false);
-//   };
-
-//   const updateField = async (item: any, field: 'target' | 'actual', value: string) => {
-//     const existing = purchaseList.find((p: any) => p.id === item.item_code);
-//     let newList;
-//     if (existing) {
-//       newList = purchaseList.map((p: any) => p.id === item.item_code ? { ...p, [field]: value } : p);
-//     } else {
-//       newList = [...purchaseList, {
-//         id: item.item_code,
-//         name: item.item_name,
-//         target: field === 'target' ? value : '0',
-//         actual: field === 'actual' ? value : '0'
-//       }];
-//     }
-//     setPurchaseList(newList);
-//     await AsyncStorage.setItem('purchase_notes', JSON.stringify(newList));
-//     await AsyncStorage.setItem('note_reset_time', Date.now().toString());
-//   };
-
-//   const filteredModels = useMemo(() => {
-//     if (filterActive) {
-//       return items.filter((i: any) => {
-//         const note = purchaseList.find((p: any) => p.id === i.item_code);
-//         const hasData = note && (parseInt(note.target) > 0 || parseInt(note.actual) > 0);
-//         return hasData && i.item_name.toLowerCase().includes(searchQuery.toLowerCase().trim());
-//       });
-//     }
-//     let list = items;
-//     if (selectedBrand) {
-//       list = list.filter((i: any) => i.item_name.split('-')[0]?.trim() === selectedBrand);
-//     }
-//     if (searchQuery) {
-//       list = list.filter((i: any) => i.item_name.toLowerCase().includes(searchQuery.toLowerCase().trim()));
-//     }
-//     return list;
-//   }, [items, selectedBrand, searchQuery, filterActive, purchaseList]);
-
-//   const brands = useMemo(() => {
-//     const uniqueBrands = new Set(items.map((i: any) => i.item_name.split('-')[0]?.trim()));
-//     return Array.from(uniqueBrands).sort();
-//   }, [items]);
-
-//   const renderItemCard = (item: any) => {
-//     const note = purchaseList.find((p: any) => p.id === item.item_code);
-//     const parts = item.item_name.split('-');
-//     const brandLabel = parts[0]?.trim() || '';
-//     const modelName = parts[1]?.trim() || '';
-//     const variant = parts[2]?.trim() || 'Standard';
-
-//     return (
-//       <View key={item.item_code} style={[GlobalStyles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-//         <View style={styles.itemMainInfo}>
-//           <View style={{ flex: 1 }}>
-//             {filterActive && <Text style={[styles.brandBadge , {color: theme.text}]}>{brandLabel.toUpperCase()}</Text>}
-//             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-//             <ThemedText style={[styles.modelNameText, { color: theme.text }]}>{modelName}</ThemedText>
-//             <Text style={[styles.variantName, { color: theme.textMuted  , backgroundColor: theme.primary + "20"}]}>{variant}</Text>
-//             </View>
-//           </View>
-//           <View style={styles.priceContainer}>
-//              <Text style={[styles.priceText, { color: theme.refreshtint }]}>₹{item.buying_rate  || '0'}</Text>
-//           </View>
-//         </View>
-//         <View style={styles.inputsRow}>
-//           <View style={[styles.pillInput, { backgroundColor: theme.iconBtn, borderColor: theme.border }, (parseInt(note?.target) > 0) && {backgroundColor: colorScheme === 'dark' ? 'rgba(255, 217, 0, 0.57)' : '#FFFDE7' }]}>
-//             <Text style={[styles.pillLabel, { color: theme.textMuted }]}>TGT</Text>
-//             <TextInput
-//               style={[styles.pillValue, { color: theme.text }]}
-//               keyboardType="numeric"
-//               placeholder="0"
-//               placeholderTextColor={theme.textMuted}
-//               value={note?.target?.toString() ?? ''}
-//               onChangeText={(v) => updateField(item, 'target', v)}
-//             />
-//           </View>
-//           <View style={[styles.pillInput, { backgroundColor: theme.iconBtn, borderColor: theme.border }, (parseInt(note?.actual) > 0) && { backgroundColor: colorScheme === 'dark' ? 'rgba(76, 175, 79, 0.51)' : '#E8F5E9' }]}>
-//             <Text style={[styles.pillLabel, { color: theme.textMuted }]}>ACT</Text>
-//             <TextInput
-//               style={[styles.pillValue, { color: theme.text }]}
-//               keyboardType="numeric"
-//               placeholder="0"
-//               placeholderTextColor={theme.textMuted}
-//               value={note?.actual?.toString() ?? ''}
-//               onChangeText={(v) => updateField(item, 'actual', v)}
-//             />
-//           </View>
-//         </View>
-//       </View>
-//     );
-//   };
-
-//   return (
-//     <ThemedView style={[GlobalStyles.container, { backgroundColor: theme.background }]}>
-//       <View style={GlobalStyles.header}>
-//         <View style={GlobalStyles.titleRow}>
-//         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-//         {(selectedBrand || filterActive) && (
-//         <Pressable 
-//           style={[GlobalStyles.iconBtn , {marginRight: -16}]}
-//           onPress={() => {
-//             if (filterActive) setFilterActive(false);
-//             else if (selectedBrand) setSelectedBrand(null);
-//           }}
-//         >
-//           <IconSymbol name="chevron.left" size={18} color={theme.text} />
-//         </Pressable>
-//           )}
-
-//           <ThemedText style={[GlobalStyles.mainTitle, { color: theme.text }]}>
-//             {filterActive ? "Summary" : (selectedBrand || "Market Note")}
-//           </ThemedText>
-//         </View>
-//             <View style={{display:'flex' , gap: 12, flexDirection:'row', alignItems:'center'}}>
-//             {/* GREEN SHADE REFRESH BUTTON */}
-//               <Pressable 
-//                           onPress={() => initializeData(true)} 
-//                         style={[
-//                           GlobalStyles.iconBtn, 
-//                           { backgroundColor: theme.refreshBg } // Distinct green shade background
-//                         ]}>
-//                           {refreshing 
-//                           ? 
-//                           <ActivityIndicator size="small" color={theme.refreshtint + '20'} /> 
-//                           : 
-//                           <IconSymbol name="arrow.counterclockwise" size={18} color={theme.refreshtint} />}
-//                </Pressable>
-//             <Pressable 
-//               style={[GlobalStyles.iconBtn, { backgroundColor: theme.iconBtn }, filterActive && { borderColor: theme.noteting, backgroundColor: theme.noteBg }]} 
-//               onPress={() => setFilterActive(!filterActive)}
-//             >
-//               <IconSymbol name="list.bullet.clipboard" size={20} color={filterActive ? theme.tint : theme.textMuted} />
-//             </Pressable>
-
-//             <Pressable style={[GlobalStyles.iconBtn,  { backgroundColor: theme.filterBg }]} onPress={() => setShowSummary(true)}>
-//               <IconSymbol name="slider.horizontal.3" size={20} color={theme.tint} />
-//             </Pressable>
-//           </View>
-//   </View>
-
-//         {(selectedBrand || filterActive) && (
-//           <View style={[GlobalStyles.searchPill, { marginTop: 10, backgroundColor: theme.iconBtn }]}>
-//             <IconSymbol name="magnifyingglass" size={16} color={theme.textMuted} />
-//             <TextInput
-//               style={[GlobalStyles.textInput, { color: theme.text }]}
-//               placeholder="Search items..."
-//               placeholderTextColor={theme.textMuted}
-//               value={searchQuery}
-//               onChangeText={setSearchQuery}
-//             />
-//           </View>
-//         )}
-//       </View>
-
-//       <ScrollView 
-//         contentContainerStyle={{ padding: 16 }}
-//         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => initializeData(true)} tintColor={theme.tint} />}
-//       >
-//         {loading && !refreshing ? (
-//           <ActivityIndicator color={theme.tint} style={{ marginTop: 20 }} />
-//         ) : (
-//           (selectedBrand || filterActive) ? (
-//             filteredModels.length > 0 ? filteredModels.map(renderItemCard) : (
-//               <View style={styles.emptyContainer}><Text style={[styles.emptyText, { color: theme.textMuted }]}>No items found.</Text></View>
-//             )
-//           ) : (
-//             <View style={GlobalStyles.brandGrid}>
-//               {brands.map(brand => (
-//                 <Pressable key={brand} style={[GlobalStyles.brandCard]} onPress={() => setSelectedBrand(brand)}>
-//                   <View style={[GlobalStyles.brandLogoCircle, { backgroundColor: theme.card, borderColor: theme.border }]}>
-//                     <Image
-//                       source={{ uri: `https://erpnext-209450-0.cloudclusters.net/files/${brand.trim().toLowerCase()}.png` }}
-//                       style={{ width: '70%', height: '70%', resizeMode: 'contain' }}
-//                     />
-//                     <Text style={[styles.brandInitial, { position: 'absolute', zIndex: -1, color: theme.textMuted }]}>
-//                       {brand.charAt(0).toUpperCase()}
-//                     </Text>
-//                   </View>
-//                   <Text style={[styles.brandText, { color: theme.textMuted }]}>{brand.toUpperCase()}</Text>
-//                 </Pressable>
-//               ))}
-//             </View>
-//           )
-//         )}
-//       </ScrollView>
-
-//       <Modal visible={showSummary} transparent animationType="fade">
-//         <Pressable style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={() => setShowSummary(false)}>
-//           <View style={[styles.popoverCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-//             <View style={styles.popoverHeader}>
-//               <ThemedText style={{ fontSize: 18, fontWeight: 'bold', color: theme.text }}>Review Note</ThemedText>
-//               <Pressable onPress={clearAllNotes} style={[styles.clearBtn, { backgroundColor: colorScheme === 'dark' ? 'rgba(255,82,82,0.1)' : '#FFEBEE' }]}>
-//                 <Text style={{ color: theme.error, fontWeight: 'bold', fontSize: 11 }}>RESET</Text>
-//               </Pressable>
-//             </View>
-//             <ScrollView showsVerticalScrollIndicator={false}>
-//               {purchaseList.filter(p => parseInt(p.target) > 0 || parseInt(p.actual) > 0).map(p => (
-//                 <View key={p.id} style={[styles.summaryRow, { borderBottomColor: theme.border }]}>
-//                   <Text style={{ color: theme.text, flex: 1, fontSize: 13 }}>{p.name}</Text>
-//                   <View style={{ flexDirection: 'row', gap: 8 }}>
-//                     <View style={[styles.statPill, { backgroundColor: theme.iconBtn, borderColor: theme.border }]}><Text style={{ color: theme.tint, fontSize: 10 }}>T: {p.target}</Text></View>
-//                     <View style={[styles.statPill, { backgroundColor: theme.iconBtn, borderColor: theme.border }]}><Text style={{ color: theme.tint, fontSize: 10 }}>A: {p.actual}</Text></View>
-//                   </View>
-//                 </View>
-//               ))}
-//             </ScrollView>
-//           </View>
-//         </Pressable>
-//       </Modal>
-//     </ThemedView>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   itemMainInfo: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
-//   brandBadge: { fontSize: 8, fontWeight: 'bold', marginBottom: 6 },
-//   modelNameText: { fontSize: 16, fontWeight: '800' },
-//   variantName: { fontSize: 11, borderRadius:99, paddingHorizontal: 6, paddingVertical: 2, fontWeight: '600', marginLeft: 4 },
-//   priceContainer: { paddingHorizontal: 5, paddingVertical: 4, borderRadius: 8 },
-//   priceText: { fontWeight: '900', fontSize: 12 },
-//   inputsRow: { flexDirection: 'row', gap: 8 },
-//   pillInput: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 99, paddingHorizontal: 12, height: 40, borderWidth: 1 },
-//   pillLabel: { fontSize: 8, fontWeight: 'bold', marginRight: 8 },
-//   pillValue: { fontSize: 16, fontWeight: '900', flex: 1, textAlign: 'center' },
-//   brandInitial: { fontSize: 24, fontWeight: 'bold' },
-//   brandText: { fontSize: 10, fontWeight: '800', marginTop: 8, textAlign: 'center' },
-//   emptyContainer: { alignItems: 'center', marginTop: 40 },
-//   emptyText: { fontSize: 12 },
-//   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-//   popoverCard: { borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 25, height: '70%', borderWidth: 1 },
-//   popoverHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-//   clearBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
-//   summaryRow: { flexDirection: 'row', paddingVertical: 15, borderBottomWidth: 1, alignItems: 'center' },
-//   statPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 }
-// });
-
-
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { getLiveInventory } from '@/constants/api';
+import { getBrandLogo, getBrandsByCategory, getFullItemDetails } from '@/constants/api';
 import { Colors, GlobalStyles } from '@/constants/Styles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  BackHandler,
-  DeviceEventEmitter,
+  Alert,
+  FlatList,
   Image,
+  LayoutAnimation,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -355,184 +23,166 @@ import {
   View
 } from 'react-native';
 
+const NOTES_KEY = 'murlidhar_market_notes';
+
 export default function PurchaseNoteScreen() {
   const colorScheme = useColorScheme() ?? 'light';
-  const theme = Colors[colorScheme as keyof typeof Colors];
-  
-  const navigation = useNavigation();
-  const [items, setItems] = useState([]);
-  const [purchaseList, setPurchaseList] = useState([]);
+  const theme = Colors[colorScheme];
+
+  const [sections, setSections] = useState<{ title: string, data: any[] }[]>([]);
+  const [items, setItems] = useState<any[]>([]);
+  const [purchaseList, setPurchaseList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterActive, setFilterActive] = useState(false);
-  const [showSummary, setShowSummary] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [expandedModel, setExpandedModel] = useState<string | null>(null);
+  const [showSummary, setShowSummary] = useState(false);
 
-  // 1. UPDATE: Fetch logic to support Server-Side search
-  const initializeData = useCallback(async (isManualRefresh = false, term = '') => {
-    if (isManualRefresh) setRefreshing(true);
-    else if (!term) setLoading(true); // Only show main loader if not searching
-
+  const loadMainData = async () => {
     try {
-      const data = await getLiveInventory(term);
-      const actualProducts = data.filter((i: any) => {
-        const name = (i.item_name || "").toLowerCase().trim();
-        // Keep your existing exclusions
-        return i.has_variants !== 1 && !name.includes('glass') && i.disabled !== 1;
-      });
-      setItems(actualProducts);
+      setRefreshing(true);
+      const [coverNames, glassNames] = await Promise.all([
+        getBrandsByCategory('Cover', undefined),
+        getBrandsByCategory('Glasses', undefined)
+      ]);
 
-      const savedNotes = await AsyncStorage.getItem('purchase_notes');
-      const lastSaveTime = await AsyncStorage.getItem('note_reset_time');
+      const fetchLogos = async (names: string[]) => {
+        return Promise.all(names.map(async (name) => {
+          const logo = await getBrandLogo(name);
+          return { name, image: logo };
+        }));
+      };
 
-      if (lastSaveTime && Date.now() - parseInt(lastSaveTime) < 8 * 60 * 60 * 1000) {
-        if (savedNotes) setPurchaseList(JSON.parse(savedNotes));
-      } else {
-        await clearAllNotes();
-      }
-    } catch (err) {
-      console.error("Fetch Error:", err);
+      const [covers, glasses] = await Promise.all([fetchLogos(coverNames), fetchLogos(glassNames)]);
+      setSections([{ title: 'Covers', data: covers }, { title: 'Glasses', data: glasses }]);
+
+      const savedNotes = await AsyncStorage.getItem(NOTES_KEY);
+      if (savedNotes) setPurchaseList(JSON.parse(savedNotes));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  };
 
-  // 2. UPDATE: Debounce Search Logic (Direct Server Fetch)
+  useEffect(() => { loadMainData(); }, []);
+
   useEffect(() => {
-    if (searchQuery.trim().length > 2) {
-      const delayDebounceFn = setTimeout(() => {
-        initializeData(false, searchQuery);
-      }, 600);
-      return () => clearTimeout(delayDebounceFn);
-    } else if (searchQuery.trim().length === 0) {
-      initializeData();
+    if (selectedBrand && selectedCategory) {
+      setLoading(true);
+      getFullItemDetails(selectedCategory, selectedBrand).then(setItems).finally(() => setLoading(false));
     }
-  }, [searchQuery, initializeData]);
+  }, [selectedBrand, selectedCategory]);
 
-  useEffect(() => {
-    const subscription = DeviceEventEmitter.addListener('RESET_EXPLORE_VIEW', () => {
-      setFilterActive(false);
-      setSelectedBrand(null);
-      setSearchQuery('');
-      setShowSummary(false);
+  const groupedItems = useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    items.forEach(item => {
+      const model = item.item_name.split('-')[1]?.trim() || "Other";
+      if (!groups[model]) groups[model] = [];
+      groups[model].push(item);
     });
-    return () => subscription.remove();
-  }, []);
-
-  useEffect(() => {
-    const backAction = () => {
-      if (filterActive) { setFilterActive(false); return true; }
-      if (selectedBrand) { setSelectedBrand(null); return true; }
-      return false;
-    };
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-    return () => backHandler.remove();
-  }, [selectedBrand, filterActive]);
-
-  const clearAllNotes = async () => {
-    setPurchaseList([]);
-    await AsyncStorage.removeItem('purchase_notes');
-    await AsyncStorage.removeItem('note_reset_time');
-    setShowSummary(false);
-    setFilterActive(false);
-  };
-
-  const updateField = async (item: any, field: 'target' | 'actual', value: string) => {
-    const existing = purchaseList.find((p: any) => p.id === item.item_code);
-    let newList;
-    if (existing) {
-      newList = purchaseList.map((p: any) => p.id === item.item_code ? { ...p, [field]: value } : p);
-    } else {
-      newList = [...purchaseList, {
-        id: item.item_code,
-        name: item.item_name,
-        target: field === 'target' ? value : '0',
-        actual: field === 'actual' ? value : '0'
-      }];
-    }
-    setPurchaseList(newList);
-    await AsyncStorage.setItem('purchase_notes', JSON.stringify(newList));
-    await AsyncStorage.setItem('note_reset_time', Date.now().toString());
-  };
-
-  const filteredModels = useMemo(() => {
-    if (filterActive) {
-      return items.filter((i: any) => {
-        const note = purchaseList.find((p: any) => p.id === i.item_code);
-        return note && (parseInt(note.target) > 0 || parseInt(note.actual) > 0);
-      });
-    }
-    let list = items;
-    if (selectedBrand) {
-      list = list.filter((i: any) => i.item_name.split('-')[0]?.trim() === selectedBrand);
-    }
-    // Note: Server-side search already handles the basic name filtering
-    return list;
-  }, [items, selectedBrand, filterActive, purchaseList]);
-
-  const brands = useMemo(() => {
-    const uniqueBrands = new Set(items.map((i: any) => i.item_name.split('-')[0]?.trim()));
-    return Array.from(uniqueBrands).sort();
+    return groups;
   }, [items]);
 
-  const renderItemCard = (item: any) => {
-    const note = purchaseList.find((p: any) => p.id === item.item_code);
-    const parts = item.item_name.split('-');
-    const brandLabel = parts[0]?.trim() || '';
-    const modelName = parts[1]?.trim() || '';
-    const variant = parts[2]?.trim();
+  const summaryData = useMemo(() => {
+    return purchaseList.filter(p => parseInt(p.target) > 0 || parseInt(p.actual) > 0);
+  }, [purchaseList]);
 
+  const updateNote = (item: any, field: 'target' | 'actual', val: string) => {
+    const newList = [...purchaseList];
+    const idx = newList.findIndex(p => p.id === item.name);
+    if (idx > -1) {
+      newList[idx] = { ...newList[idx], [field]: val };
+    } else {
+      newList.push({
+        id: item.name,
+        name: item.item_name,
+        target: field === 'target' ? val : '0',
+        actual: field === 'actual' ? val : '0'
+      });
+    }
+    setPurchaseList(newList);
+    AsyncStorage.setItem(NOTES_KEY, JSON.stringify(newList));
+  };
+
+  const resetNotes = () => {
+    Alert.alert("Reset All Data", "This will clear your entire purchase list.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Reset", style: "destructive", onPress: async () => {
+        setPurchaseList([]);
+        await AsyncStorage.removeItem(NOTES_KEY);
+        setShowSummary(false);
+      }}
+    ]);
+  };
+
+  const getInputStyle = (target: string, actual: string) => {
+    const tgt = parseInt(target || '0');
+    const act = parseInt(actual || '0');
+    if (act > 0 && act >= tgt) return { backgroundColor: theme.refreshBg, tint: theme.refreshtint };
+    if (tgt > 0) return { backgroundColor: theme.noteBg, tint: theme.noteting };
+    return { backgroundColor: theme.border + '50', tint: theme.textMuted };
+  };
+
+  const renderModelAccordion = (modelName: string, modelItems: any[]) => {
+    const isExpanded = expandedModel === modelName;
     return (
-      <View key={item.item_code} style={[GlobalStyles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        <View style={styles.itemMainInfo}>
-          <View style={{ flex: 1 }}>
-            {filterActive && <Text style={[styles.brandBadge , {color: theme.text}]}>{brandLabel.toUpperCase()}</Text>}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <ThemedText style={[styles.modelNameText, { color: theme.text }]}>{modelName}</ThemedText>
-              
-              {/* HIDE VARIANT IF EMPTY */}
-              {variant && (
-                <Text style={[styles.variantName, { color: theme.textMuted, backgroundColor: theme.primary + "20"}]}>
-                  {variant}
-                </Text>
-              )}
-            </View>
+      <View key={modelName} style={[styles.accordionContainer, { borderBottomColor: theme.border }]}>
+        <Pressable style={styles.accordionHeader} onPress={() => {
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          setExpandedModel(isExpanded ? null : modelName);
+        }}>
+          <View>
+            <Text style={[styles.itemModelText, { color: theme.text }]}>{modelName}</Text>
+            <Text style={{ fontSize: 10, color: theme.textMuted }}>{modelItems.length} Variants</Text>
           </View>
-          
-          {/* HIDE PRICE IF 0 OR MISSING */}
-          {item.buying_rate > 0 && (
-            <View style={styles.priceContainer}>
-               <Text style={[styles.priceText, { color: theme.refreshtint }]}>₹{item.buying_rate.toLocaleString('en-IN')}</Text>
-            </View>
-          )}
-        </View>
+          <IconSymbol name={isExpanded ? "chevron.up" : "chevron.down"} size={14} color={theme.textMuted} />
+        </Pressable>
 
-        <View style={styles.inputsRow}>
-          <View style={[styles.pillInput, { backgroundColor: theme.iconBtn, borderColor: theme.border }, (parseInt(note?.target) > 0) && {backgroundColor: colorScheme === 'dark' ? 'rgba(255, 217, 0, 0.3)' : '#FFFDE7' }]}>
-            <Text style={[styles.pillLabel, { color: theme.textMuted }]}>TGT</Text>
-            <TextInput
-              style={[styles.pillValue, { color: theme.text }]}
-              keyboardType="numeric"
-              placeholder="0"
-              placeholderTextColor={theme.textMuted}
-              value={note?.target?.toString() ?? ''}
-              onChangeText={(v) => updateField(item, 'target', v)}
-            />
+        {isExpanded && (
+          <View style={styles.accordionContent}>
+            {modelItems.map(item => {
+              const note = purchaseList.find(p => p.id === item.name);
+              const style = getInputStyle(note?.target, note?.actual);
+              const type = item.item_name.split('-')[2]?.trim() || "Standard";
+
+              return (
+                <View key={item.name} style={styles.typeRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.itemTypeText, { color: theme.text }]}>{type}</Text>
+                    <Text style={{ fontSize: 10, color: theme.textMuted }}>Stock: {Math.round(item.real_count)}</Text>
+                  </View>
+                  <View style={styles.pillContainer}>
+                    {/* Target Pill */}
+                    <View style={[styles.inputPill, { backgroundColor: style.backgroundColor }]}>
+                      <Text style={[styles.pillLabel, { color: style.tint }]}>TGT</Text>
+                      <TextInput
+                        keyboardType="numeric"
+                        style={[styles.pillInput, { color: style.tint }]}
+                        value={note?.target || ''}
+                        onChangeText={v => updateNote(item, 'target', v)}
+                        placeholder="0"
+                        placeholderTextColor={style.tint + '50'}
+                      />
+                    </View>
+                    {/* Actual Pill */}
+                    <View style={[styles.inputPill, { backgroundColor: style.backgroundColor }]}>
+                      <Text style={[styles.pillLabel, { color: style.tint }]}>ACT</Text>
+                      <TextInput
+                        keyboardType="numeric"
+                        style={[styles.pillInput, { color: style.tint }]}
+                        value={note?.actual || ''}
+                        onChangeText={v => updateNote(item, 'actual', v)}
+                        placeholder="0"
+                        placeholderTextColor={style.tint + '50'}
+                      />
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
           </View>
-          <View style={[styles.pillInput, { backgroundColor: theme.iconBtn, borderColor: theme.border }, (parseInt(note?.actual) > 0) && { backgroundColor: colorScheme === 'dark' ? 'rgba(76, 175, 79, 0.3)' : '#E8F5E9' }]}>
-            <Text style={[styles.pillLabel, { color: theme.textMuted }]}>ACT</Text>
-            <TextInput
-              style={[styles.pillValue, { color: theme.text }]}
-              keyboardType="numeric"
-              placeholder="0"
-              placeholderTextColor={theme.textMuted}
-              value={note?.actual?.toString() ?? ''}
-              onChangeText={(v) => updateField(item, 'actual', v)}
-            />
-          </View>
-        </View>
+        )}
       </View>
     );
   };
@@ -540,140 +190,138 @@ export default function PurchaseNoteScreen() {
   return (
     <ThemedView style={[GlobalStyles.container, { backgroundColor: theme.background }]}>
       <View style={GlobalStyles.header}>
-        <View style={GlobalStyles.titleRow}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        {(selectedBrand || filterActive) && (
-        <Pressable 
-          style={[GlobalStyles.iconBtn , {marginRight: -16}]}
-          onPress={() => {
-            if (filterActive) setFilterActive(false);
-            else if (selectedBrand) setSelectedBrand(null);
-            setSearchQuery('');
-          }}
-        >
-          <IconSymbol name="chevron.left" size={18} color={theme.text} />
-        </Pressable>
-          )}
-
-          <ThemedText style={[GlobalStyles.mainTitle, { color: theme.text }]}>
-            {filterActive ? "Summary" : (selectedBrand || "Market Note")}
-          </ThemedText>
+        <View style={styles.headerTitleRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {selectedBrand && (
+              <Pressable onPress={() => setSelectedBrand(null)} style={styles.backBtn}>
+                <IconSymbol name="chevron.left" size={20} color={theme.text} />
+              </Pressable>
+            )}
+            <ThemedText style={[GlobalStyles.mainTitle, { color: theme.text }]}>
+              {selectedBrand || "Market Notes"}
+            </ThemedText>
+          </View>
+          <Pressable onPress={() => { setRefreshing(true); loadMainData(); }} style={styles.refreshPill}>
+            {refreshing ? <ActivityIndicator size="small" color={theme.primary} /> : 
+            <IconSymbol name="arrow.counterclockwise" size={14} color={theme.textMuted} />}
+          </Pressable>
         </View>
-            <View style={{display:'flex' , gap: 12, flexDirection:'row', alignItems:'center'}}>
-              <Pressable 
-                  onPress={() => initializeData(true)} 
-                  style={[GlobalStyles.iconBtn, { backgroundColor: theme.refreshBg }]}>
-                  {refreshing ? <ActivityIndicator size="small" color={theme.refreshtint} /> : <IconSymbol name="arrow.counterclockwise" size={18} color={theme.refreshtint} />}
-               </Pressable>
-            <Pressable 
-              style={[GlobalStyles.iconBtn, { backgroundColor: theme.iconBtn }, filterActive && { borderColor: theme.noteting, backgroundColor: theme.noteBg }]} 
-              onPress={() => {
-                setFilterActive(!filterActive);
-                setSelectedBrand(null);
-              }}
-            >
-              <IconSymbol name="list.bullet.clipboard" size={20} color={filterActive ? theme.tint : theme.textMuted} />
-            </Pressable>
-
-            <Pressable style={[GlobalStyles.iconBtn,  { backgroundColor: theme.filterBg }]} onPress={() => setShowSummary(true)}>
-              <IconSymbol name="slider.horizontal.3" size={20} color={theme.tint} />
-            </Pressable>
-          </View>
-  </View>
-
-        {(selectedBrand || filterActive) && (
-          <View style={[GlobalStyles.searchPill, { marginTop: 10, backgroundColor: theme.iconBtn }]}>
-            <IconSymbol name="magnifyingglass" size={16} color={theme.textMuted} />
-            <TextInput
-              style={[GlobalStyles.textInput, { color: theme.text }]}
-              placeholder="Search across DB..."
-              placeholderTextColor={theme.textMuted}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-        )}
       </View>
 
-      <ScrollView 
-        contentContainerStyle={{ padding: 16 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => initializeData(true)} tintColor={theme.tint} />}
-      >
-        {loading && !refreshing ? (
-          <ActivityIndicator color={theme.tint} style={{ marginTop: 20 }} />
-        ) : (
-          (selectedBrand || filterActive || searchQuery.length > 2) ? (
-            filteredModels.length > 0 ? filteredModels.map(renderItemCard) : (
-              <View style={styles.emptyContainer}><Text style={[styles.emptyText, { color: theme.textMuted }]}>No items found.</Text></View>
-            )
-          ) : (
-            <View style={GlobalStyles.brandGrid}>
-              {brands.map(brand => (
-                <Pressable key={brand} style={[GlobalStyles.brandCard]} onPress={() => setSelectedBrand(brand)}>
-                  <View style={[GlobalStyles.brandLogoCircle, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                    <Image
-                      source={{ uri: `https://erpnext-209450-0.cloudclusters.net/files/${brand.trim().toLowerCase()}.png` }}
-                      style={{ width: '70%', height: '70%', resizeMode: 'contain' }}
-                    />
-                    <Text style={[styles.brandInitial, { position: 'absolute', zIndex: -1, color: theme.textMuted }]}>
-                      {brand.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  <Text style={[styles.brandText, { color: theme.textMuted }]}>{brand.toUpperCase()}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )
-        )}
-      </ScrollView>
+      {loading && !refreshing ? (
+        <ActivityIndicator color={theme.primary} style={{ marginTop: 50 }} />
+      ) : (
+        <FlatList
+          data={selectedBrand ? Object.keys(groupedItems) : sections}
+          keyExtractor={(item) => selectedBrand ? item : item.title}
+          renderItem={({ item }) => {
+            if (selectedBrand) return renderModelAccordion(item, groupedItems[item]);
+            return (
+              <View style={{ marginBottom: 20 }}>
+                <Text style={styles.sectionHeader}>{item.title}</Text>
+                {item.data.map(brand => {
+                  const initial = brand.name ? brand.name.charAt(0).toUpperCase() : '?';
+                  return (
+                    <Pressable key={brand.name} style={[styles.brandRow, { backgroundColor: theme.card }]} onPress={() => {
+                      setSelectedBrand(brand.name);
+                      setSelectedCategory(item.title === 'Covers' ? 'Cover' : 'Glasses');
+                    }}>
+                      <View style={[styles.logoBox, { backgroundColor: theme.background }]}>
+                        {brand.image ? (
+                          <Image source={{ uri: `https://erpnext-209450-0.cloudclusters.net${brand.image}` }} style={styles.rowLogo} resizeMode="contain" />
+                        ) : (
+                          <Text style={[styles.initialText, { color: theme.primary }]}>{initial}</Text>
+                        )}
+                      </View>
+                      <Text style={[styles.rowNameText, { color: theme.text }]}>{brand.name}</Text>
+                      <IconSymbol name="chevron.right" size={14} color={theme.textMuted} />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            );
+          }}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadMainData} tintColor={theme.primary} />}
+        />
+      )}
 
-      {/* Summary Modal remains the same... */}
-      <Modal visible={showSummary} transparent animationType="fade">
-        <Pressable style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={() => setShowSummary(false)}>
-          <View style={[styles.popoverCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <View style={styles.popoverHeader}>
-              <ThemedText style={{ fontSize: 18, fontWeight: 'bold', color: theme.text }}>Review Note</ThemedText>
-              <Pressable onPress={clearAllNotes} style={[styles.clearBtn, { backgroundColor: colorScheme === 'dark' ? 'rgba(255,82,82,0.1)' : '#FFEBEE' }]}>
-                <Text style={{ color: theme.error, fontWeight: 'bold', fontSize: 11 }}>RESET</Text>
-              </Pressable>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {purchaseList.filter(p => parseInt(p.target) > 0 || parseInt(p.actual) > 0).map(p => (
-                <View key={p.id} style={[styles.summaryRow, { borderBottomColor: theme.border }]}>
-                  <Text style={{ color: theme.text, flex: 1, fontSize: 13 }}>{p.name}</Text>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <View style={[styles.statPill, { backgroundColor: theme.iconBtn, borderColor: theme.border }]}><Text style={{ color: theme.tint, fontSize: 10 }}>T: {p.target}</Text></View>
-                    <View style={[styles.statPill, { backgroundColor: theme.iconBtn, borderColor: theme.border }]}><Text style={{ color: theme.tint, fontSize: 10 }}>A: {p.actual}</Text></View>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
+      {/* FAB */}
+      <Pressable style={[styles.fab, { backgroundColor: theme.background, borderWidth:1 , borderColor:theme.border }]} onPress={() => setShowSummary(true)}>
+        <IconSymbol name="list.bullet" size={24} color="white" />
+        {summaryData.length > 0 && (
+          <View style={[styles.fabBadge, { backgroundColor: theme.error, borderColor: theme.border }]}>
+            <Text style={styles.badgeText}>{summaryData.length}</Text>
           </View>
-        </Pressable>
+        )}
+      </Pressable>
+
+      {/* Summary Modal */}
+      <Modal visible={showSummary} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowSummary(false)}>
+        <ThemedView style={{ flex: 1, backgroundColor: theme.background }}>
+          <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+            <ThemedText style={styles.modalTitle}>Summary</ThemedText>
+            <View style={{ flexDirection: 'row', gap: 20 }}>
+              <Pressable onPress={resetNotes}><IconSymbol name="trash.fill" size={20} color={theme.error} /></Pressable>
+              <Pressable onPress={() => setShowSummary(false)}><IconSymbol name="xmark" size={20} color={theme.text} /></Pressable>
+            </View>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 20 }}>
+            {summaryData.length === 0 ? (
+              <Text style={[styles.emptyText, { color: theme.textMuted }]}>No items updated yet.</Text>
+            ) : (
+              summaryData.map((item, idx) => {
+                const style = getInputStyle(item.target, item.actual);
+                return (
+                  <View key={idx} style={[styles.summaryItem, { borderBottomColor: theme.border }]}>
+                    <Text style={[styles.summaryName, { color: theme.text }]}>{item.name}</Text>
+                    <View style={styles.pillContainer}>
+                      <View style={[styles.inputPill, { backgroundColor: style.backgroundColor, width: 48 }]}>
+                        <Text style={[styles.pillLabel, { color: style.tint }]}>TGT</Text>
+                        <Text style={[styles.pillInput, { color: style.tint }]}>{item.target}</Text>
+                      </View>
+                      <View style={[styles.inputPill, { backgroundColor: style.backgroundColor, width: 48 }]}>
+                        <Text style={[styles.pillLabel, { color: style.tint }]}>ACT</Text>
+                        <Text style={[styles.pillInput, { color: style.tint }]}>{item.actual}</Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </ScrollView>
+        </ThemedView>
       </Modal>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  itemMainInfo: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
-  brandBadge: { fontSize: 8, fontWeight: 'bold', marginBottom: 6 },
-  modelNameText: { fontSize: 16, fontWeight: '800' },
-  variantName: { fontSize: 11, borderRadius:99, paddingHorizontal: 8, paddingVertical: 4, fontWeight: '700' },
-  priceContainer: { paddingHorizontal: 5, paddingVertical: 4, borderRadius: 8 },
-  priceText: { fontWeight: '900', fontSize: 12 },
-  inputsRow: { flexDirection: 'row', gap: 8 },
-  pillInput: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 99, paddingHorizontal: 12, height: 40, borderWidth: 1 },
-  pillLabel: { fontSize: 8, fontWeight: 'bold', marginRight: 8 },
-  pillValue: { fontSize: 16, fontWeight: '900', flex: 1, textAlign: 'center' },
-  brandInitial: { fontSize: 24, fontWeight: 'bold' },
-  brandText: { fontSize: 10, fontWeight: '800', marginTop: 8, textAlign: 'center' },
-  emptyContainer: { alignItems: 'center', marginTop: 40 },
-  emptyText: { fontSize: 12 },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  popoverCard: { borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 25, height: '70%', borderWidth: 1 },
-  popoverHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  clearBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
-  summaryRow: { flexDirection: 'row', paddingVertical: 15, borderBottomWidth: 1, alignItems: 'center' },
-  statPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 }
+  headerTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  backBtn: { padding: 8, marginLeft: -8 },
+  refreshPill: { padding: 8, borderRadius: 20, backgroundColor: 'rgba(150,150,150,0.1)' },
+  sectionHeader: { fontSize: 11, fontWeight: '900', color: '#888', textTransform: 'uppercase', marginLeft: 20, marginBottom: 12, letterSpacing: 1 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', padding: 12, marginHorizontal: 16, borderRadius: 16, marginBottom: 8, ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 }, android: { elevation: 2 } }) },
+  logoBox: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  rowLogo: { width: '70%', height: '70%' },
+  rowNameText: { flex: 1, marginLeft: 12, fontSize: 15, fontWeight: '600' },
+  accordionContainer: { borderBottomWidth: 1 },
+  accordionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20 },
+  accordionContent: { paddingHorizontal: 20, paddingBottom: 10 },
+  typeRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
+  itemModelText: { fontSize: 16, fontWeight: '700' },
+  itemTypeText: { fontSize: 14, fontWeight: '600' },
+  pillContainer: { flexDirection: 'row', gap: 6 },
+  inputPill: { width: 54, borderRadius: 18, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
+  pillLabel: { fontSize: 7, fontWeight: '900', marginBottom: -2 },
+  pillInput: { fontSize: 14, fontWeight: '800', textAlign: 'center', padding: 0 },
+  fab: { position: 'absolute', bottom: 30, right: 20, width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 5 },
+  fabBadge: { position: 'absolute', top: 0, right: 0, borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', borderWidth: 2, },
+  badgeText: { color: 'white', fontSize: 9, fontWeight: 'bold' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
+  modalTitle: { fontSize: 22, fontWeight: '800' },
+  summaryItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, borderBottomWidth: 1 },
+  summaryName: { fontSize: 14, fontWeight: '600', flex: 1, marginRight: 10 },
+  emptyText: { textAlign: 'center', marginTop: 60, fontSize: 15 },
+  initialText: { fontSize: 18, fontWeight: 'bold' }
 });

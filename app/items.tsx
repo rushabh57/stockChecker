@@ -1,0 +1,406 @@
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { getFullItemDetails } from '@/constants/api';
+import { Colors, GlobalStyles } from '@/constants/Styles';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+    ActivityIndicator,
+    FlatList,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    useColorScheme,
+    View,
+} from 'react-native';
+
+export default function ItemsPage() {
+    const { category, brand } = useLocalSearchParams();
+    const colorScheme = useColorScheme() ?? 'light';
+    const theme = Colors[colorScheme as keyof typeof Colors];
+    const router = useRouter();
+
+    const [allItems, setAllItems] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [search, setSearch] = useState('');
+    const [selectedShop, setSelectedShop] = useState('All Shops');
+
+    // const loadItems = useCallback(async (searchTerm = '') => {
+    //     try {
+    //         setLoading(true);
+    //         const data = await getBrandStockDetails(category as string, brand as string, searchTerm);
+    //         const testData = (data || []).slice(0, 60); // Keep performance snappy
+    //         setAllItems(testData);
+    //     } catch (error) {
+    //         console.error("Fetch Error:", error);
+    //     } finally {
+    //         setLoading(false);
+    //         setRefreshing(false);
+    //     }
+    // }, [category, brand]);
+
+
+
+// 2. Update the loadItems function
+const loadItems = useCallback(async (searchTerm = '') => {
+    try {
+        setLoading(true);
+        // This now returns the ALREADY MAPPED data with prices
+        const data = await getFullItemDetails(category as string, brand as string, searchTerm);
+        
+        const testData = (data || []).slice(0, 60); 
+        setAllItems(testData);
+    } catch (error) {
+        console.error("Fetch Error:", error);
+    } finally {
+        setLoading(false);
+        setRefreshing(false);
+    }
+}, [category, brand]);
+
+
+
+    useEffect(() => { loadItems(); }, [loadItems]);
+
+    // Debounced Search
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(() => {
+            if (search.trim().length > 1 || search.trim().length === 0) {
+                loadItems(search);
+            }
+        }, 500);
+        return () => clearTimeout(delayDebounceFn);
+    }, [search, loadItems]);
+
+    const dynamicShopList = useMemo(() => {
+        const shops = new Set<string>();
+        allItems.forEach(item => {
+            item.stocks?.forEach((s: any) => {
+                const name = s.warehouse.split(' - ')[0];
+                if (name) shops.add(name);
+            });
+        });
+        return ['All Shops', ...Array.from(shops)];
+    }, [allItems]);
+
+    // 1. Filter by Shop first, 2. Then group by Model
+    const groupedItems = useMemo(() => {
+        // Step 1: Filter raw data based on shop
+        const filtered = selectedShop === 'All Shops' 
+            ? allItems 
+            : allItems.filter(item => item.stocks?.some((s: any) => s.warehouse.includes(selectedShop)));
+
+        // Step 2: Group the filtered items
+        const groups: { [key: string]: any } = {};
+        filtered.forEach(item => {
+            const modelKey = item.model_name || item.item_name.split('-')[1] || "Other";
+            if (!groups[modelKey]) {
+                groups[modelKey] = {
+                    modelName: modelKey,
+                    variations: []
+                };
+            }
+            groups[modelKey].variations.push(item);
+        });
+        return Object.values(groups);
+    }, [selectedShop, allItems]);
+
+ 
+    const renderModelGroup = ({ item: group }: { item: any }) => {
+        return (
+            <View style={[styles.groupCard, { backgroundColor: theme.card }]}>
+                <View style={styles.groupHeader}>
+                    <Text style={[styles.brandLabel, { color: theme.tint }]}>{brand}</Text>
+                    <ThemedText style={styles.modelTitle}>{group.modelName}</ThemedText>
+                </View>
+    
+                <View style={styles.variationList}>
+                    {group.variations.map((v: any, index: number) => {
+                        // 1. Get stock data for the selected shop filter
+                        const stockData = selectedShop === 'All Shops' 
+                            ? v.stocks 
+                            : v.stocks?.filter((s: any) => s.warehouse.includes(selectedShop));
+                        
+                        // --- UPDATED LOGIC: Calculate REAL QTY (Actual - Reserved) ---
+                        // const qty = stockData?.reduce((acc: number, s: any) => {
+                        //     const projected = (s.actual_qty || 0) - (s.reserved_qty || 0);
+                        //     return acc + projected;
+                        // }, 0) || 0;
+
+                        const qty = stockData?.reduce((acc: number, s: any) => {
+                            // --- ADD THIS LOG ---
+                            console.log(`Checking ${s.warehouse}: Actual=${s.actual_qty}, Reserved=${s.reserved_qty}`);
+                            
+                            const projected = (s.actual_qty || 0) - (s.reserved_qty || 0);
+                            console.log(`Projected stock for ${s.warehouse}: ${projected}`);
+                            return acc + projected;
+                        }, 0) || 0;
+
+                        const isLowStock = qty > 0 && qty < 5;
+                        const hasStock = qty > 0;
+    
+                        // 2. Identify which warehouses specifically have REAL PROJECTED stock
+                        const availableIn = stockData?.filter((s: any) => {
+                            return (s.actual_qty - (s.reserved_qty || 0)) > 0;
+                        }) || [];
+    
+                        return (
+                            <View key={index} style={[styles.variationRow, {borderTopColor: theme.border + '40' }]}>
+                                <View style={{ flex: 1, borderRadius: 99, padding: 1 }}>
+                                    <View style={[styles.varMainInfo, { 
+                                        borderRadius: 999, 
+                                        borderWidth: 1, 
+                                        borderColor: theme.border, 
+                                        paddingHorizontal: 4, 
+                                        paddingVertical: 4,
+                                        alignSelf: 'flex-start',
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                    }]}>
+                                        {selectedShop === 'All Shops' && hasStock && (
+                                            <View style={styles.warehouseBadgeContainer}>
+                                                {availableIn.map((s: any, sIdx: number) => (
+                                                    <View key={sIdx} style={[styles.miniWarehouseBadge, { backgroundColor: theme.cardSecondary + "50", borderColor: theme.border }]}>
+                                                        <Text style={[styles.miniWarehouseText, { color: theme.textMuted }]}>
+                                                            {s.warehouse.split(' - ')[0]} 
+                                                        </Text>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        )}
+                                        
+                                        <Text style={[styles.coverTypeText, { color: theme.text, borderRadius: 99, backgroundColor: theme.cardSecondary + "50", paddingHorizontal: 12, paddingVertical: 6, width: 'auto' }]}>
+                                            {v.cover_type || 'Standard'}
+                                        </Text>
+
+                                        {/* --- DISPLAY REAL COUNT --- */}
+                                        <Text style={[styles.qtyText, { 
+                                            color: hasStock ? (isLowStock ? '#FF9500' : theme.tint) : theme.textMuted, 
+                                            borderRadius: 99, 
+                                            backgroundColor: theme.cardSecondary + "50", 
+                                            borderWidth: 1, 
+                                            borderColor: isLowStock ? '#FF950040' : theme.border, 
+                                            paddingHorizontal: 12, 
+                                            paddingVertical: 6, 
+                                            width: 'auto'  
+                                        }]}>
+                                            {Math.round(qty)} pcs
+                                        </Text>
+
+                                        <Text style={[styles.priceValue, { color: '#08CB00', borderColor: '#08CB0040', backgroundColor: '#08CB0020' }]}>
+                                            ₹{v.buying_price || '0'}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+                        );
+                    })}
+                </View>
+            </View>
+        );
+    };
+    // const renderModelGroup = ({ item: group }: { item: any }) => {
+    //     return (
+    //         <View style={[styles.groupCard, { backgroundColor: theme.card }]}>
+    //             <View style={styles.groupHeader}>
+    //                 <Text style={[styles.brandLabel, { color: theme.tint }]}>{brand}</Text>
+    //                 <ThemedText style={styles.modelTitle}>{group.modelName}</ThemedText>
+    //             </View>
+    
+    //             <View style={styles.variationList}>
+    //                 {group.variations.map((v: any, index: number) => {
+    //                     // 1. Get stock data for the selected filter
+    //                     const stockData = selectedShop === 'All Shops' 
+    //                         ? v.stocks 
+    //                         : v.stocks?.filter((s: any) => s.warehouse.includes(selectedShop));
+                        
+    //                     const qty = stockData?.reduce((acc: number, s: any) => acc + s.actual_qty, 0) || 0;
+    //                     const isLowStock = qty > 0 && qty < 5;
+    //                     const hasStock = qty > 0;
+    
+    //                     // 2. Identify which warehouses specifically have this stock
+    //                     // We only show these badges if "All Shops" is selected
+    //                     const availableIn = stockData?.filter((s: any) => s.actual_qty > 0) || [];
+    
+    //                     return (
+    //                         <View key={index} style={[styles.variationRow, {borderTopColor: theme.border + '40' }]}>
+    //                             <View style={{ flex: 1,borderRadius: 99, padding:1}}>
+    //                                 <View style={[styles.varMainInfo
+    //                                     ,
+    //                                     { 
+    //                                         borderRadius: 999, // High value ensures a pill shape regardless of height
+    //                                         borderWidth: 1, 
+    //                                         borderColor: theme.border, 
+    //                                         paddingHorizontal: 4, 
+    //                                         paddingVertical: 4,
+    //                                         alignSelf: 'flex-start', // Keeps the pill from stretching to full width
+    //                                         flexDirection: 'row',    // Ensures content stays centered horizontally
+    //                                         alignItems: 'center',    // Centers content vertically
+    //                                         justifyContent: 'center',
+    //                                         // backgroundColor: !hasStock ? theme.background : (isLowStock ? '#FF950020' : '#34C75920')
+    //                                       }
+    //                                 ]}>
+    //                                      {selectedShop === 'All Shops' && hasStock && (
+    //                                     <View style={styles.warehouseBadgeContainer}>
+    //                                         {availableIn.map((s: any, sIdx: number) => (
+    //                                             <View key={sIdx} style={[styles.miniWarehouseBadge, { backgroundColor: theme.cardSecondary + "50", borderColor: theme.border }]}>
+    //                                                 <Text style={[styles.miniWarehouseText, { color: theme.textMuted }]}>
+    //                                                     {s.warehouse.split(' - ')[0]} 
+    //                                                 </Text>
+    //                                             </View>
+    //                                         ))}
+    //                                     </View>
+    //                                     )}
+    //                                     <Text style={[styles.coverTypeText, { color: theme.text, borderRadius:99, backgroundColor: theme.cardSecondary + "50", paddingInline:12, paddingBlock:6, width:'auto' }]}>{v.cover_type || 'Standard'}</Text>
+    //                                     <Text style={[styles.qtyText, { color: hasStock ? theme.tint : theme.textMuted, borderRadius:99, backgroundColor: theme.cardSecondary + "50", borderWidth:1, borderColor:theme.border, paddingInline:12, paddingBlock:6, width:'auto'  }]}>
+    //                                         {Math.round(qty)} pcs
+    //                                     </Text>
+    //                                     <Text style={[styles.priceValue, { color: '#08CB00', borderColor: '#08CB00' + '40', backgroundColor: '#08CB0020' }]}>
+    //                                     ₹{v.buying_price || '0'}
+    //                                     </Text>
+    //                                     {/* <Text style={[styles.priceValue, { color: theme.tint }]}>
+    //                                     sell ₹{v.selling_price || '0'}
+    //                                     </Text> */}
+                                    
+    //                                 </View>
+    
+    //                                 {/* --- NEW: Warehouse Badges --- */}
+                                  
+    //                             </View>
+                                
+    //                         {/* Selling Price */}
+    //                         {/* <View style={styles.priceColumn}>
+    //                             <Text style={{color: theme.text}}>SELL</Text>
+    //                             <Text style={[styles.priceValue, { color: theme.tint }]}>
+    //                             ₹{v.selling_price || v.standard_rate || '0'}
+    //                             </Text>
+    //                         </View> */}
+    //                         </View>
+    //                     );
+    //                 })}
+    //             </View>
+    //         </View>
+    //     );
+    // };
+    return (
+        <ThemedView style={[GlobalStyles.container, { backgroundColor: theme.background }]}>
+            <View style={GlobalStyles.header}>
+                <View style={styles.headerTop}>
+                    <Pressable onPress={() => router.back()} style={GlobalStyles.iconBtn}>
+                        <IconSymbol name="chevron.left" size={20} color={theme.text} />
+                    </Pressable>
+                    <Text style={[GlobalStyles.mainTitle, { color: theme.text }]}>{brand}</Text>
+                </View>
+
+                <View style={[GlobalStyles.searchPill, { backgroundColor: theme.card, marginTop: 10 }]}>
+                    <IconSymbol name="magnifyingglass" size={16} color={theme.textMuted} />
+                    <TextInput
+                        style={[GlobalStyles.textInput, { color: theme.text }]}
+                        placeholder="Search model..."
+                        placeholderTextColor={theme.textMuted}
+                        value={search}
+                        onChangeText={setSearch}
+                    />
+                    {loading && <ActivityIndicator size="small" color={theme.tint} />}
+                </View>
+
+                <View style={styles.chipContainer}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
+                        {dynamicShopList.map((shop) => (
+                            <Pressable 
+                                key={shop} 
+                                onPress={() => setSelectedShop(shop)}
+                                style={[
+                                    styles.chip, 
+                                    { backgroundColor: theme.card, borderColor: theme.border },
+                                    selectedShop === shop && { backgroundColor: theme.text, borderColor: theme.text }
+                                ]}
+                            >
+                                <Text style={[
+                                    styles.chipText, 
+                                    { color: theme.textMuted },
+                                    selectedShop === shop && { color: theme.background }
+                                ]}>
+                                    {shop}
+                                </Text>
+                            </Pressable>
+                        ))}
+                    </ScrollView>
+                </View>
+            </View>
+
+            <FlatList
+                data={groupedItems}
+                keyExtractor={(item) => item.modelName}
+                renderItem={renderModelGroup}
+                contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadItems(search)} />}
+                ListEmptyComponent={!loading ? <Text style={styles.emptyText}>No models found in this shop.</Text> : null}
+            />
+        </ThemedView>
+    );
+}
+
+const styles = StyleSheet.create({
+    headerTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    chipContainer: { marginTop: 12, marginBottom: 4 },
+    chipScroll: { gap: 8, paddingRight: 20 },
+    chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+    chipText: { fontSize: 11, fontWeight: '700' },
+    
+    groupCard: {
+        borderRadius: 24,
+        padding: 16,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(150,150,150,0.1)',
+        elevation: 2,
+    },
+    groupHeader: { marginBottom: 12 },
+    brandLabel: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 },
+    modelTitle: { fontSize: 22, fontWeight: '900' },
+    
+    // variationList: { marginTop: 4 },
+    variationRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start', // Changed to flex-start to accommodate the badges underneath
+        // paddingVertical: 12,
+        borderTopWidth: 1,
+    },
+    varMainInfo: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 6, borderRadius:99 },
+    statusDot: { width: 8, height: 8, borderRadius: 4 },
+    coverTypeText: { fontSize: 14, fontWeight: '700', width: 80 },
+    qtyText: { fontSize: 13, fontWeight: '800' },
+    
+    priceInfo: { flexDirection: 'row', gap: 12 },
+    priceColumn: { alignItems: 'flex-end' },
+    priceLabel: { fontSize: 8, fontWeight: '800', opacity: 0.5 },
+    priceValue: { fontSize: 13, fontWeight: '800' , borderWidth:1,  paddingHorizontal:12, paddingVertical:6, borderRadius:99},
+    
+    emptyText: { textAlign: 'center', marginTop: 40, opacity: 0.5, fontSize: 14 },
+
+ 
+    warehouseBadgeContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 4,
+    },
+    miniWarehouseBadge: {
+        paddingInline:12,
+        paddingBlock:8,
+        borderRadius: 99,
+        borderWidth: 1,
+    },
+    miniWarehouseText: {
+        fontSize: 9,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+    },
+});
