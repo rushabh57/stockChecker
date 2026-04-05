@@ -70,6 +70,7 @@ const MAPPING = {
   'cube.fill': 'inventory', // For "Item Groups" or general stock
   'square.grid.3x3.fill': 'grid-view', // For "Glasses" or grid layouts
   'iphone': 'smartphone', // For "Covers" or mobile items
+  'shippingbox.fill': 'inventory', // For "Covers" or mobile items
 
   
 } as IconMapping;

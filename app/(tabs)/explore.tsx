@@ -201,10 +201,23 @@ export default function PurchaseNoteScreen() {
               {selectedBrand || "Market Notes"}
             </ThemedText>
           </View>
-          <Pressable onPress={() => { setRefreshing(true); loadMainData(); }} style={styles.refreshPill}>
+          {/* <Pressable onPress={() => { setRefreshing(true); loadMainData(); }} style={styles.refreshPill}>
             {refreshing ? <ActivityIndicator size="small" color={theme.primary} /> : 
             <IconSymbol name="arrow.counterclockwise" size={14} color={theme.textMuted} />}
-          </Pressable>
+          </Pressable> */}
+           <Pressable 
+                            onPress={() => { setRefreshing(true); loadMainData(); }}
+                            style={[styles.refreshPill, { backgroundColor: theme.card , borderColor: theme.border }]}
+                        >
+                            {refreshing ? (
+                                <ActivityIndicator size="small" color={theme.tint} />
+                            ) : (
+                                <>
+                                    <IconSymbol name="arrow.counterclockwise" size={14} color={theme.textMuted} />
+                                    <Text style={[styles.refreshText, { color: theme.textMuted }]}>Sync</Text>
+                                </>
+                            )}
+                        </Pressable>
         </View>
       </View>
 
@@ -222,7 +235,7 @@ export default function PurchaseNoteScreen() {
                 {item.data.map(brand => {
                   const initial = brand.name ? brand.name.charAt(0).toUpperCase() : '?';
                   return (
-                    <Pressable key={brand.name} style={[styles.brandRow, { backgroundColor: theme.card }]} onPress={() => {
+                    <Pressable key={brand.name} style={[styles.brandRow, { backgroundColor: theme.background, borderBottomWidth:1 , borderBottomColor: theme.border }]} onPress={() => {
                       setSelectedBrand(brand.name);
                       setSelectedCategory(item.title === 'Covers' ? 'Cover' : 'Glasses');
                     }}>
@@ -230,7 +243,7 @@ export default function PurchaseNoteScreen() {
                         {brand.image ? (
                           <Image source={{ uri: `https://erpnext-209450-0.cloudclusters.net${brand.image}` }} style={styles.rowLogo} resizeMode="contain" />
                         ) : (
-                          <Text style={[styles.initialText, { color: theme.primary }]}>{initial}</Text>
+                          <Text style={[styles.initialText, { color: theme.textMuted }]}>{initial}</Text>
                         )}
                       </View>
                       <Text style={[styles.rowNameText, { color: theme.text }]}>{brand.name}</Text>
@@ -248,7 +261,7 @@ export default function PurchaseNoteScreen() {
 
       {/* FAB */}
       <Pressable style={[styles.fab, { backgroundColor: theme.background, borderWidth:1 , borderColor:theme.border }]} onPress={() => setShowSummary(true)}>
-        <IconSymbol name="list.bullet" size={24} color="white" />
+        <IconSymbol name="list.bullet" size={24} color={theme.text} />
         {summaryData.length > 0 && (
           <View style={[styles.fabBadge, { backgroundColor: theme.error, borderColor: theme.border }]}>
             <Text style={styles.badgeText}>{summaryData.length}</Text>
@@ -262,8 +275,8 @@ export default function PurchaseNoteScreen() {
           <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
             <ThemedText style={styles.modalTitle}>Summary</ThemedText>
             <View style={{ flexDirection: 'row', gap: 20 }}>
-              <Pressable onPress={resetNotes}><IconSymbol name="trash.fill" size={20} color={theme.error} /></Pressable>
-              <Pressable onPress={() => setShowSummary(false)}><IconSymbol name="xmark" size={20} color={theme.text} /></Pressable>
+              <Pressable onPress={resetNotes} style={{backgroundColor: theme.error + "50", padding: 6, borderRadius: 20, borderWidth: 1, borderColor: theme.error}}><IconSymbol name="trash.fill" size={20} color={theme.error} /></Pressable>
+              <Pressable  style={{backgroundColor: theme.tint + "50", padding: 6, borderRadius: 20, borderWidth: 1, borderColor: theme.border}} onPress={() => setShowSummary(false)}><IconSymbol name="xmark" size={20} color={theme.text} /></Pressable>
             </View>
           </View>
           <ScrollView contentContainerStyle={{ padding: 20 }}>
@@ -299,10 +312,25 @@ export default function PurchaseNoteScreen() {
 const styles = StyleSheet.create({
   headerTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   backBtn: { padding: 8, marginLeft: -8 },
-  refreshPill: { padding: 8, borderRadius: 20, backgroundColor: 'rgba(150,150,150,0.1)' },
+  refreshPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
   sectionHeader: { fontSize: 11, fontWeight: '900', color: '#888', textTransform: 'uppercase', marginLeft: 20, marginBottom: 12, letterSpacing: 1 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', padding: 12, marginHorizontal: 16, borderRadius: 16, marginBottom: 8, ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 }, android: { elevation: 2 } }) },
-  logoBox: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  brandRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    padding: 12, 
+    marginHorizontal: 16, 
+    borderRadius: 0, // Set to 0 for sharp corners
+    marginBottom: 8, 
+    ...Platform.select({ 
+      ios: { 
+        shadowColor: '#000', 
+        shadowOffset: { width: 0, height: 2 }, 
+        shadowOpacity: 0.05, 
+        shadowRadius: 4 
+      }, 
+    }) 
+  },
+  logoBox: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
   rowLogo: { width: '70%', height: '70%' },
   rowNameText: { flex: 1, marginLeft: 12, fontSize: 15, fontWeight: '600' },
   accordionContainer: { borderBottomWidth: 1 },
@@ -315,7 +343,7 @@ const styles = StyleSheet.create({
   inputPill: { width: 54, borderRadius: 18, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
   pillLabel: { fontSize: 7, fontWeight: '900', marginBottom: -2 },
   pillInput: { fontSize: 14, fontWeight: '800', textAlign: 'center', padding: 0 },
-  fab: { position: 'absolute', bottom: 30, right: 20, width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 5 },
+  fab: { position: 'absolute', bottom: 30, right: 20, width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 5 },
   fabBadge: { position: 'absolute', top: 0, right: 0, borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', borderWidth: 2, },
   badgeText: { color: 'white', fontSize: 9, fontWeight: 'bold' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
@@ -325,3 +353,5 @@ const styles = StyleSheet.create({
   emptyText: { textAlign: 'center', marginTop: 60, fontSize: 15 },
   initialText: { fontSize: 18, fontWeight: 'bold' }
 });
+
+

@@ -127,7 +127,7 @@ export default function BrandsPage() {
                         </ThemedText>
                         <Pressable 
                             onPress={() => { setRefreshing(true); loadData(); }} 
-                            style={[styles.refreshPill, { backgroundColor: theme.card }]}
+                            style={[styles.refreshPill, { backgroundColor: theme.card, borderColor: theme.border }]}
                         >
                             {refreshing ? (
                                 <ActivityIndicator size="small" color={theme.tint} />
@@ -154,8 +154,8 @@ export default function BrandsPage() {
                             style={[
                                 styles.chip,
                                 { 
-                                    backgroundColor: selectedShop === item ? theme.primary : theme.card,
-                                    borderColor: selectedShop === item ? theme.border : 'rgba(150,150,150,0.1)'
+                                    backgroundColor: selectedShop === item ? theme.primary + "50" : theme.card,
+                                    borderColor: selectedShop === item ? theme.border : theme.border + '80',
                                 }
                             ]}
                         >
@@ -203,7 +203,7 @@ export default function BrandsPage() {
 const styles = StyleSheet.create({
     headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     headerTitleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '85%', flexDirection: 'row' },
-    refreshPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(150,150,150,0.1)' },
+    refreshPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
     refreshText: { fontSize: 12, fontWeight: '700' },
     chipWrapper: { marginBottom: 10 },
     chipList: { paddingHorizontal: 16, gap: 10, paddingVertical: 10 },
