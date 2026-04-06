@@ -92,10 +92,10 @@ export const getBrandsByCategory = async (category, warehouse) => {
 };
 
 // Get Brand Stock Details (ONLY ONE COPY) ---
-export const getBrandStockDetails = async (category, brand) => {
+export const getBrandStockDetails = async (category, brand, search = '') => {
   try {
     const response = await api.get(`/api/method/get_categorized_stock`, {
-      params: { category, brand }
+      params: { category, brand,search_term: search }
     });
     
     let items = response.data.message || [];
@@ -148,9 +148,9 @@ export const getBrandStockDetails = async (category, brand) => {
 };
 
 // Full Data Mapping 
-export const getFullItemDetails = async (category, brand) => {
+export const getFullItemDetails = async (category, brand, search = '') => {
   try {
-    const stockData = await getBrandStockDetails(category, brand);
+    const stockData = await getBrandStockDetails(category, brand, search);
     if (!stockData || stockData.length === 0) return [];
 
     const itemCodes = stockData.map((i) => i.name);

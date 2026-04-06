@@ -116,23 +116,47 @@ export default function PurchaseNoteScreen() {
     ]);
   };
 
+  // const getInputStyle = (target: string, actual: string) => {
+  //   const tgt = parseInt(target || '0');
+  //   const act = parseInt(actual || '0');
+  //   if (act > 0 && act >= tgt) return { backgroundColor: theme.refreshBg, tint: theme.refreshtint };
+  //   if (tgt > 0) return { backgroundColor: theme.noteBg, tint: theme.noteting };
+  //   return { backgroundColor: theme.border + '50', tint: theme.textMuted };
+  // };
   const getInputStyle = (target: string, actual: string) => {
     const tgt = parseInt(target || '0');
     const act = parseInt(actual || '0');
-    if (act > 0 && act >= tgt) return { backgroundColor: theme.refreshBg, tint: theme.refreshtint };
-    if (tgt > 0) return { backgroundColor: theme.noteBg, tint: theme.noteting };
-    return { backgroundColor: theme.border + '50', tint: theme.textMuted };
-  };
+
+    // SUCCESS: Actual meets or exceeds Target
+    if (act > 0 && act >= tgt) {
+        return { 
+            backgroundColor: theme.accent + '20', // Light green-ish wash
+            tint: theme.accent || '#27ae60'      // Bold green text
+        };
+    } 
+    // WARNING: Target set but not yet met
+    if (tgt > 0) {
+        return { 
+            backgroundColor: theme.noteBg + '20',    // Light orange/yellow wash
+            tint: theme.notetint || '#f39c12'        // Bold orange text
+        };
+    }
+    // DEFAULT: No data entered
+    return { 
+        backgroundColor: theme.border + '40', 
+        tint: theme.textMuted 
+    };
+};
 
   const renderModelAccordion = (modelName: string, modelItems: any[]) => {
     const isExpanded = expandedModel === modelName;
     return (
-      <View key={modelName} style={[styles.accordionContainer, { borderBottomColor: theme.border }]}>
+      <View key={modelName} style={[styles.accordionContainer, { borderBottomColor: theme.border, backgroundColor: isExpanded ? theme.cardSecondary + '50' : 'transparent'}]}>
         <Pressable style={styles.accordionHeader} onPress={() => {
           LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
           setExpandedModel(isExpanded ? null : modelName);
         }}>
-          <View>
+          <View style={{}}>
             <Text style={[styles.itemModelText, { color: theme.text }]}>{modelName}</Text>
             <Text style={{ fontSize: 10, color: theme.textMuted }}>{modelItems.length} Variants</Text>
           </View>
@@ -147,38 +171,85 @@ export default function PurchaseNoteScreen() {
               const type = item.item_name.split('-')[2]?.trim() || "Standard";
 
               return (
+              
                 <View key={item.name} style={styles.typeRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.itemTypeText, { color: theme.text }]}>{type}</Text>
-                    <Text style={{ fontSize: 10, color: theme.textMuted }}>Stock: {Math.round(item.real_count)}</Text>
-                  </View>
-                  <View style={styles.pillContainer}>
-                    {/* Target Pill */}
-                    <View style={[styles.inputPill, { backgroundColor: style.backgroundColor }]}>
-                      <Text style={[styles.pillLabel, { color: style.tint }]}>TGT</Text>
-                      <TextInput
-                        keyboardType="numeric"
-                        style={[styles.pillInput, { color: style.tint }]}
-                        value={note?.target || ''}
-                        onChangeText={v => updateNote(item, 'target', v)}
-                        placeholder="0"
-                        placeholderTextColor={style.tint + '50'}
-                      />
-                    </View>
-                    {/* Actual Pill */}
-                    <View style={[styles.inputPill, { backgroundColor: style.backgroundColor }]}>
-                      <Text style={[styles.pillLabel, { color: style.tint }]}>ACT</Text>
-                      <TextInput
-                        keyboardType="numeric"
-                        style={[styles.pillInput, { color: style.tint }]}
-                        value={note?.actual || ''}
-                        onChangeText={v => updateNote(item, 'actual', v)}
-                        placeholder="0"
-                        placeholderTextColor={style.tint + '50'}
-                      />
-                    </View>
-                  </View>
-                </View>
+  <View style={{ flex: 1 }}>
+    <Text style={[styles.itemTypeText, { color: theme.text }]}>{type}</Text>
+    <Text style={{ fontSize: 10, color: theme.textMuted }}>Stock: {Math.round(item.real_count)}</Text>
+  </View>
+
+  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+    {/* Target Pill */}
+    <View style={{ 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      backgroundColor: style.backgroundColor, 
+      borderRadius: 20, // This creates the capsule shape
+      paddingHorizontal: 12, 
+      paddingVertical: 4,
+      borderWidth: 1,
+      borderColor: style.tint + '20' 
+    }}>
+      <Text style={{ 
+        fontSize: 10, 
+        fontWeight: '800', 
+        color: style.tint, 
+        marginRight: 4, 
+        opacity: 0.6 
+      }}>TGT</Text>
+      <TextInput
+        keyboardType="numeric"
+        style={{ 
+          color: style.tint, 
+          fontSize: 14, 
+          fontWeight: 'bold', 
+          minWidth: 30, 
+          textAlign: 'center',
+          padding: 0 // Removes default Android padding
+        }}
+        value={note?.target || ''}
+        onChangeText={v => updateNote(item, 'target', v)}
+        placeholder="0"
+        placeholderTextColor={style.tint + '30'}
+      />
+    </View>
+
+    {/* Actual Pill */}
+    <View style={{ 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      backgroundColor: style.backgroundColor, 
+      borderRadius: 20, // Capsule shape
+      paddingHorizontal: 12, 
+      paddingVertical: 4,
+      borderWidth: 1,
+      borderColor: style.tint + '20'
+    }}>
+      <Text style={{ 
+        fontSize: 10, 
+        fontWeight: '800', 
+        color: style.tint, 
+        marginRight: 4, 
+        opacity: 0.6 
+      }}>ACT</Text>
+      <TextInput
+        keyboardType="numeric"
+        style={{ 
+          color: style.tint, 
+          fontSize: 14, 
+          fontWeight: 'bold', 
+          minWidth: 30, 
+          textAlign: 'center',
+          padding: 0
+        }}
+        value={note?.actual || ''}
+        onChangeText={v => updateNote(item, 'actual', v)}
+        placeholder="0"
+        placeholderTextColor={style.tint + '30'}
+      />
+    </View>
+  </View>
+</View>
               );
             })}
           </View>
@@ -270,41 +341,110 @@ export default function PurchaseNoteScreen() {
       </Pressable>
 
       {/* Summary Modal */}
-      <Modal visible={showSummary} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowSummary(false)}>
-        <ThemedView style={{ flex: 1, backgroundColor: theme.background }}>
-          <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
-            <ThemedText style={styles.modalTitle}>Summary</ThemedText>
-            <View style={{ flexDirection: 'row', gap: 20 }}>
-              <Pressable onPress={resetNotes} style={{backgroundColor: theme.error + "50", padding: 6, borderRadius: 20, borderWidth: 1, borderColor: theme.error}}><IconSymbol name="trash.fill" size={20} color={theme.error} /></Pressable>
-              <Pressable  style={{backgroundColor: theme.tint + "50", padding: 6, borderRadius: 20, borderWidth: 1, borderColor: theme.border}} onPress={() => setShowSummary(false)}><IconSymbol name="xmark" size={20} color={theme.text} /></Pressable>
-            </View>
+      <Modal 
+  visible={showSummary} 
+  animationType="slide" 
+  transparent={true} 
+  onRequestClose={() => setShowSummary(false)}
+>
+  <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
+    
+    <Pressable style={{ flex: 1 }} onPress={() => setShowSummary(false)} />
+
+    <ThemedView style={{ 
+      height: '75%', 
+      backgroundColor: theme.background, 
+      borderTopLeftRadius: 24, 
+      borderTopRightRadius: 24,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 10,
+      elevation: 20
+    }}>
+      
+      <View style={[styles.modalHeader, { 
+        borderBottomColor: theme.border + "50", 
+        borderBottomWidth: 1,
+        paddingVertical: 15, 
+        paddingHorizontal: 20, 
+        flexDirection: 'row', 
+        justifyContent: 'space-between', 
+        alignItems: 'center' 
+      }]}>
+
+        <ThemedText style={[styles.modalTitle, { fontSize: 20, fontWeight: '800' }]}>Review Audit</ThemedText>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <Pressable onPress={resetNotes} style={{ backgroundColor: theme.error + "15", padding: 8, borderRadius: 100, borderWidth: 1, borderColor: theme.error + "40" }}>
+            <IconSymbol name="trash.fill" size={18} color={theme.error} />
+          </Pressable>
+          <Pressable style={{ backgroundColor: theme.border + "40", padding: 8, borderRadius: 100, borderWidth: 1, borderColor: theme.border }} onPress={() => setShowSummary(false)}>
+            <IconSymbol name="xmark" size={18} color={theme.text} />
+          </Pressable>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+        {summaryData.length === 0 ? (
+          <View style={{ marginTop: 60, alignItems: 'center' }}>
+            <Text style={{ color: theme.textMuted, fontSize: 14, fontWeight: '500' }}>No items updated yet.</Text>
           </View>
-          <ScrollView contentContainerStyle={{ padding: 20 }}>
-            {summaryData.length === 0 ? (
-              <Text style={[styles.emptyText, { color: theme.textMuted }]}>No items updated yet.</Text>
-            ) : (
-              summaryData.map((item, idx) => {
-                const style = getInputStyle(item.target, item.actual);
-                return (
-                  <View key={idx} style={[styles.summaryItem, { borderBottomColor: theme.border }]}>
-                    <Text style={[styles.summaryName, { color: theme.text }]}>{item.name}</Text>
-                    <View style={styles.pillContainer}>
-                      <View style={[styles.inputPill, { backgroundColor: style.backgroundColor, width: 48 }]}>
-                        <Text style={[styles.pillLabel, { color: style.tint }]}>TGT</Text>
-                        <Text style={[styles.pillInput, { color: style.tint }]}>{item.target}</Text>
-                      </View>
-                      <View style={[styles.inputPill, { backgroundColor: style.backgroundColor, width: 48 }]}>
-                        <Text style={[styles.pillLabel, { color: style.tint }]}>ACT</Text>
-                        <Text style={[styles.pillInput, { color: style.tint }]}>{item.actual}</Text>
-                      </View>
-                    </View>
+        ) : (
+          summaryData.map((item, idx) => {
+            const statusStyle = getInputStyle(item.target, item.actual);
+            return (
+              <View key={idx} style={{ 
+                flexDirection: 'row', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                paddingVertical: 14, 
+                borderBottomWidth: 1, 
+                borderBottomColor: theme.border + "30" 
+              }}>
+                {/* Item Name Container */}
+                <View style={{ flex: 1, marginRight: 10 }}>
+                  <Text style={{ color: theme.text, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  <View style={{ 
+                    flexDirection: 'row', 
+                    alignItems: 'center', 
+                    backgroundColor: statusStyle.backgroundColor, 
+                    borderRadius: 100, 
+                    paddingHorizontal: 10, 
+                    paddingVertical: 4,
+                    borderWidth: 1,
+                    borderColor: statusStyle.tint + "20"
+                  }}>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: statusStyle.tint, marginRight: 4, opacity: 0.6 }}>TGT</Text>
+                    <Text style={{ fontSize: 13, fontWeight: 'bold', color: statusStyle.tint }}>{item.target || '0'}</Text>
                   </View>
-                );
-              })
-            )}
-          </ScrollView>
-        </ThemedView>
-      </Modal>
+
+                  <View style={{ 
+                    flexDirection: 'row', 
+                    alignItems: 'center', 
+                    backgroundColor: statusStyle.backgroundColor, 
+                    borderRadius: 100, 
+                    paddingHorizontal: 10, 
+                    paddingVertical: 4,
+                    borderWidth: 1,
+                    borderColor: statusStyle.tint + "20"
+                  }}>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: statusStyle.tint, marginRight: 4, opacity: 0.6 }}>ACT</Text>
+                    <Text style={{ fontSize: 13, fontWeight: 'bold', color: statusStyle.tint }}>{item.actual || '0'}</Text>
+                  </View>
+                </View>
+              </View>
+            );
+          })
+        )}
+      </ScrollView>
+    </ThemedView>
+  </View>
+</Modal>
     </ThemedView>
   );
 }
@@ -339,8 +479,8 @@ const styles = StyleSheet.create({
   typeRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
   itemModelText: { fontSize: 16, fontWeight: '700' },
   itemTypeText: { fontSize: 14, fontWeight: '600' },
-  pillContainer: { flexDirection: 'row', gap: 6 },
-  inputPill: { width: 54, borderRadius: 18, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
+  pillContainer: { flexDirection: 'row', gap: 6, },
+  inputPill: { flex:1,  borderRadius: 99, borderWidth:1, paddingBlock: 6, paddingInline:6, alignItems: 'center', justifyContent: 'center' },
   pillLabel: { fontSize: 7, fontWeight: '900', marginBottom: -2 },
   pillInput: { fontSize: 14, fontWeight: '800', textAlign: 'center', padding: 0 },
   fab: { position: 'absolute', bottom: 30, right: 20, width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 5 },
